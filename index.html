@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' https://coversehq.com;
+    connect-src 'self' https://coversehq.com wss://coversehq.com ws://localhost:* wss://localhost:* https://www.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://accounts.google.com https://apis.google.com;
+    script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.googleapis.com https://apis.google.com;
+    style-src 'self' 'unsafe-inline';
+    frame-src 'self' https://accounts.google.com https://apis.google.com https://www.gstatic.com https://coversehq.com;
+  ">
+  <title>Coverse</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="session.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header"></header>
+
+    <div class="top-nav">
+      <div class="nav-left">
+        <div id="brandLogo" class="brand-pill">COVERSE</div>
+        <button class="tab-btn" data-tab="site">CoverseHQ.com</button>
+        <button class="tab-btn active" data-tab="call">Call</button>
+        <button class="tab-btn" data-tab="session" id="btnOpenSession">Session</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
+        <button class="tab-btn" data-tab="friends">Discover</button>
+        <button class="tab-btn" data-tab="messages">Messages</button>
+      </div>
+      <div class="nav-right">
+        <button id="btnNotifications" class="icon-btn" title="Notifications">🔔</button>
+        <div id="notificationsPanel" class="notifications-panel hidden">
+          <div class="notif-header">
+            <div class="notif-title">Notifications</div>
+            <div class="notif-actions-inline">
+              <button id="btnRefreshNotifications" class="ghost small" aria-label="Refresh notifications"><span class="icon svg-refresh"></span></button>
+              <button id="btnCloseNotifications" class="notif-close" aria-label="Close notifications">×</button>
+            </div>
+          </div>
+          <div id="notificationsList" class="notif-list">
+            <div class="notif-item">No new notifications</div>
+          </div>
+        </div>
+        <div class="auth-bubble">
+          <button id="authBubble" class="avatar-pill" title="Account">
+            <span id="authAvatar">?</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  <main class="grid simple">
+    <section class="panel tab-content active" data-tab-content="call">
+      <input id="signalingUrl" type="hidden" value="wss://coversehq.com/ws/signal" />
+      <div class="panel-title">Call</div>
+      <input id="callRoom" type="hidden" value="room-1234" />
+      <div id="callStatus" class="sr-only" aria-live="polite">Idle</div>
+
+      <div class="studio-shell simple-studio">
+        <!-- Layout Container - supports multiple view modes -->
+        <div id="callVideoPane" class="video-layout layout-solo">
+          <!-- Main/Focus Video -->
+          <div class="video-main" id="videoMain">
+            <div class="video-pane-header">
+              <span class="dot green"></span> <span id="mainVideoLabel">You</span>
+            </div>
+            <video id="localLarge" autoplay playsinline muted></video>
+            <!-- Placeholder avatar when no video -->
+            <div class="video-placeholder" id="mainPlaceholder">
+              <div class="avatar-circle">Y</div>
+              <span class="placeholder-name">You</span>
+            </div>
+            <div id="callStatusOverlay" class="call-status-badge">Idle</div>
+            <div id="callMeta" class="call-meta">Room: -- | Server: --</div>
+            <button id="btnExitFullscreen" class="fs-exit hidden" aria-label="Exit Fullscreen">×</button>
+          </div>
+          
+          <!-- Secondary Video (for dual/side-by-side layouts) -->
+          <div class="video-secondary" id="videoSecondary">
+            <div class="video-pane-header">
+              <span class="dot green"></span> <span id="secondaryVideoLabel">Alex</span>
+            </div>
+            <video id="remoteMain" autoplay playsinline></video>
+            <!-- Placeholder avatar -->
+            <div class="video-placeholder" id="secondaryPlaceholder">
+              <div class="avatar-circle" style="background: linear-gradient(135deg, #8b5cf6, #a855f7);">A</div>
+              <span class="placeholder-name">Alex</span>
+            </div>
+          </div>
+          
+          <!-- Third participant (for grid layout) -->
+          <div class="video-tertiary" id="videoTertiary">
+            <div class="video-pane-header">
+              <span class="dot green"></span> <span>Jordan</span>
+            </div>
+            <video id="remote2" autoplay playsinline></video>
+            <div class="video-placeholder">
+              <div class="avatar-circle" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">J</div>
+              <span class="placeholder-name">Jordan</span>
+            </div>
+          </div>
+          
+          <!-- Fourth participant (for grid layout) -->
+          <div class="video-quaternary" id="videoQuaternary">
+            <div class="video-pane-header">
+              <span class="dot yellow"></span> <span>Sam</span>
+            </div>
+            <video id="remote3" autoplay playsinline></video>
+            <div class="video-placeholder">
+              <div class="avatar-circle" style="background: linear-gradient(135deg, #22c55e, #4ade80);">S</div>
+              <span class="placeholder-name">Sam</span>
+            </div>
+          </div>
+          
+          <!-- Screen Share Area (for screen-share layout) -->
+          <div class="video-screen" id="videoScreen">
+            <div class="video-pane-header">
+              <span class="dot green"></span> Screen Share
+            </div>
+            <video id="screenShareVideo" autoplay playsinline></video>
+            <div class="video-placeholder screen-placeholder">
+              <div class="screen-icon">🖥️</div>
+              <span class="placeholder-name">Screen Share</span>
+            </div>
+          </div>
+          
+          <!-- Thumbnail Strip (for focus + thumbnails layout) -->
+          <div class="video-thumbnails" id="videoThumbnails">
+            <div class="thumbnail active" id="thumbLocal">
+              <video id="thumbLocalVideo" autoplay playsinline muted></video>
+              <div class="thumb-placeholder">
+                <div class="avatar-circle small">Y</div>
+              </div>
+              <span class="thumb-label">You</span>
+            </div>
+            <div class="thumbnail" id="thumbRemote1">
+              <div class="thumb-placeholder">
+                <div class="avatar-circle small" style="background: linear-gradient(135deg, #8b5cf6, #a855f7);">A</div>
+              </div>
+              <span class="thumb-label">Alex</span>
+            </div>
+            <div class="thumbnail" id="thumbRemote2">
+              <div class="thumb-placeholder">
+                <div class="avatar-circle small" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">J</div>
+              </div>
+              <span class="thumb-label">Jordan</span>
+            </div>
+          </div>
+        </div>
+        
+        <div id="callRoster" class="call-roster"></div>
+        <div id="sideDrawer" class="drawer hidden">
+          <div class="drawer-header">
+            <div class="drawer-title" id="drawerTitle">Connections</div>
+            <button id="btnDrawerClose" class="ghost small">Close</button>
+          </div>
+          <div id="drawerConnections" class="drawer-body">
+            <div id="callConnections" class="call-connections">No connections.</div>
+          </div>
+          <div id="drawerMixer" class="drawer-body hidden">
+            <div class="subhead">Call Audio</div>
+            <div class="meter-block">
+              <div class="meter-bar"><div class="level" id="tbLevel"></div></div>
+              <div class="meter-label">Level</div>
+            </div>
+            <div class="subhead" style="margin-top:10px;">Mixer</div>
+            <div id="mixerPanel" class="mixer-panel">
+              <div class="fader">
+                <div class="fader-track"><div class="fader-thumb" style="bottom:55%;"></div></div>
+                <div class="fader-label">Me</div>
+              </div>
+              <div class="fader">
+                <div class="fader-track"><div class="fader-thumb" style="bottom:45%;"></div></div>
+                <div class="fader-label">Call</div>
+              </div>
+              <div class="fader">
+                <div class="fader-track"><div class="fader-thumb" style="bottom:35%;"></div></div>
+                <div class="fader-label">System</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-toolbar">
+        <button id="btnToggleMic" class="icon-pill ghost" aria-label="Voice" title="Microphone">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,143.6V240a8,8,0,0,1-16,0V207.6A80.11,80.11,0,0,1,48,128a8,8,0,0,1,16,0,64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.11,80.11,0,0,1,136,207.6Z"></path></svg>
+        </button>
+        <button id="btnToggleHQ" class="icon-pill ghost" aria-label="System Audio" title="System Audio">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81ZM152,207.64,92.91,161.69A7.94,7.94,0,0,0,88,160H40V96H88a7.94,7.94,0,0,0,4.91-1.69L152,48.36ZM208,104v48a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm32-16v80a8,8,0,0,1-16,0V88a8,8,0,0,1,16,0Z"></path></svg>
+        </button>
+        <button id="btnToggleCamera" class="icon-pill ghost" aria-label="Camera" title="Camera">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M251.77,73a8,8,0,0,0-8.21.39L208,97.05V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V159l35.56,23.71A8,8,0,0,0,248,184a8,8,0,0,0,8-8V80A8,8,0,0,0,251.77,73ZM192,184H32V72H192V184Zm48-22.95-32-21.33V116.28L240,95Z"></path></svg>
+        </button>
+        <button id="btnInvite" class="icon-pill ghost" aria-label="Invite" title="Invite">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M168,56a8,8,0,0,1,8-8h16V32a8,8,0,0,1,16,0V48h16a8,8,0,0,1,0,16H208V80a8,8,0,0,1-16,0V64H176A8,8,0,0,1,168,56Zm62.56,54.68a103.92,103.92,0,1,1-85.24-85.24,8,8,0,0,1-2.64,15.78A88.07,88.07,0,0,0,40,128a87.62,87.62,0,0,0,22.24,58.41A79.66,79.66,0,0,1,98.3,157.66a48,48,0,1,1,59.4,0,79.66,79.66,0,0,1,36.06,28.75A87.62,87.62,0,0,0,216,128a88.85,88.85,0,0,0-1.22-14.68,8,8,0,1,1,15.78-2.64ZM128,152a32,32,0,1,0-32-32A32,32,0,0,0,128,152Zm0,64a87.57,87.57,0,0,0,53.92-18.5,64,64,0,0,0-107.84,0A87.57,87.57,0,0,0,128,216Z"></path></svg>
+        </button>
+        <button id="btnShareScreen" class="icon-pill ghost" aria-label="Share Screen" title="Share Screen">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M232,56V200a16,16,0,0,1-16,16H144a8,8,0,0,1,0-16h72V56H40V96a8,8,0,0,1-16,0V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM32,184a8,8,0,0,0,0,16,8,8,0,0,1,8,8,8,8,0,0,0,16,0A24,24,0,0,0,32,184Zm0-32a8,8,0,0,0,0,16,40,40,0,0,1,40,40,8,8,0,0,0,16,0A56.06,56.06,0,0,0,32,152Zm0-32a8,8,0,0,0,0,16,72.08,72.08,0,0,1,72,72,8,8,0,0,0,16,0A88.1,88.1,0,0,0,32,120Z"></path></svg>
+        </button>
+        <div class="format-dropdown">
+          <button id="btnLayoutToggle" class="icon-pill ghost" aria-label="Layout" title="Layout">
+            <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M216,48H40A16,16,0,0,0,24,64V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48ZM40,64H216v56H136a8,8,0,0,0-8,8v64H40ZM216,192H144V136h72v56Z"></path></svg>
+          </button>
+          <div id="layoutMenu" class="format-menu hidden">
+            <button data-layout="solo" class="active">Solo (1 caller)</button>
+            <button data-layout="dual">Side by Side</button>
+            <button data-layout="focus">Focus + Thumbnails</button>
+            <button data-layout="grid">Grid (2-4 callers)</button>
+            <button data-layout="screen-share">Screen Share + Caller</button>
+            <button data-layout="presentation">Presentation Mode</button>
+          </div>
+        </div>
+        <div class="format-dropdown">
+          <button id="btnQualityToggle" class="icon-pill ghost" aria-label="Quality" title="Quality">
+            <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M136,120v96a8,8,0,0,1-16,0V120a8,8,0,0,1,16,0Zm64,72a8,8,0,0,0-8,8v16a8,8,0,0,0,16,0V200A8,8,0,0,0,200,192Zm24-32H208V40a8,8,0,0,0-16,0V160H176a8,8,0,0,0,0,16h48a8,8,0,0,0,0-16ZM56,160a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V168A8,8,0,0,0,56,160Zm24-32H64V40a8,8,0,0,0-16,0v88H32a8,8,0,0,0,0,16H80a8,8,0,0,0,0-16Zm72-48H136V40a8,8,0,0,0-16,0V80H104a8,8,0,0,0,0,16h48a8,8,0,0,0,0-16Z"></path></svg>
+          </button>
+          <div id="qualityMenu" class="format-menu hidden">
+            <button data-quality="low">Low Latency (360p)</button>
+            <button data-quality="med">Balanced (720p)</button>
+            <button data-quality="high">High (1080p)</button>
+          </div>
+        </div>
+        <button id="btnMixer" class="icon-pill ghost" aria-label="Mixer" title="Mixer">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M136,120v96a8,8,0,0,1-16,0V120a8,8,0,0,1,16,0Zm64,72a8,8,0,0,0-8,8v16a8,8,0,0,0,16,0V200A8,8,0,0,0,200,192Zm24-32H208V40a8,8,0,0,0-16,0V160H176a8,8,0,0,0,0,16h48a8,8,0,0,0,0-16ZM56,160a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V168A8,8,0,0,0,56,160Zm24-32H64V40a8,8,0,0,0-16,0v88H32a8,8,0,0,0,0,16H80a8,8,0,0,0,0-16Zm72-48H136V40a8,8,0,0,0-16,0V80H104a8,8,0,0,0,0,16h48a8,8,0,0,0,0-16Z"></path></svg>
+        </button>
+        <button id="btnPopout" class="icon-pill ghost" aria-label="PiP" title="Picture in Picture">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M216,48H40A16,16,0,0,0,24,64V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48ZM40,64H216v56H136a8,8,0,0,0-8,8v64H40ZM216,192H144V136h72v56Z"></path></svg>
+        </button>
+        <button id="btnFullscreenCam" class="icon-pill ghost" aria-label="Fullscreen" title="Fullscreen">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M216,48V96a8,8,0,0,1-16,0V67.31l-42.34,42.35a8,8,0,0,1-11.32-11.32L188.69,56H160a8,8,0,0,1,0-16h48A8,8,0,0,1,216,48ZM98.34,146.34,56,188.69V160a8,8,0,0,0-16,0v48a8,8,0,0,0,8,8H96a8,8,0,0,0,0-16H67.31l42.35-42.34a8,8,0,0,0-11.32-11.32ZM208,152a8,8,0,0,0-8,8v28.69l-42.34-42.35a8,8,0,0,0-11.32,11.32L188.69,200H160a8,8,0,0,0,0,16h48a8,8,0,0,0,8-8V160A8,8,0,0,0,208,152ZM67.31,56H96a8,8,0,0,0,0-16H48a8,8,0,0,0-8,8V96a8,8,0,0,0,16,0V67.31l42.34,42.35a8,8,0,0,0,11.32-11.32Z"></path></svg>
+        </button>
+        <button id="btnStartEnd" class="icon-pill icon-leave" aria-label="Start Call" title="Start/End Call">
+          <svg class="toolbar-icon" viewBox="0 0 256 256"><path d="M144.27,45.93a8,8,0,0,1,9.8-5.66,86.22,86.22,0,0,1,61.66,61.66,8,8,0,0,1-5.66,9.8A8.23,8.23,0,0,1,208,112a8,8,0,0,1-7.73-5.94,70.35,70.35,0,0,0-50.33-50.33A8,8,0,0,1,144.27,45.93Zm-2.33,41.8c13.79,3.68,22.65,12.54,26.33,26.33A8,8,0,0,0,176,120a8.23,8.23,0,0,0,2.07-.27,8,8,0,0,0,5.66-9.8c-5.12-19.16-18.5-32.54-37.66-37.66a8,8,0,1,0-4.13,15.46Zm81.94,95.35A56.26,56.26,0,0,1,168,232C88.6,232,24,167.4,24,88A56.26,56.26,0,0,1,72.92,32.12a16,16,0,0,1,16.62,9.52l21.12,47.15,0,.12A16,16,0,0,1,109.39,104c-.18.27-.37.52-.57.77L88,129.45c7.49,15.22,23.41,31,38.83,38.51l24.34-20.71a8.12,8.12,0,0,1,.75-.56,16,16,0,0,1,15.17-1.4l.13.06,47.11,21.11A16,16,0,0,1,223.88,183.08Zm-15.88-2s-.07,0-.11,0h0l-47-21.05-24.35,20.71a8.44,8.44,0,0,1-.74.56,16,16,0,0,1-15.75,1.14c-18.73-9.05-37.4-27.58-46.46-46.11a16,16,0,0,1,1-15.7,6.13,6.13,0,0,1,.57-.77L96,95.15l-21-47a.61.61,0,0,1,0-.12A40.2,40.2,0,0,0,40,88,128.14,128.14,0,0,0,168,216,40.21,40.21,0,0,0,208,181.07Z"></path></svg>
+          <span class="label">Start Call</span>
+        </button>
+      </div>
+      <div class="toolbar-dropdowns">
+        <label>Mic
+          <select id="micSelectToolbar"></select>
+        </label>
+        <label>Camera
+          <select id="cameraSelectToolbar"></select>
+        </label>
+        <label>System Audio
+          <select id="speakerSelectToolbar"></select>
+        </label>
+        <label>Call Audio
+          <select id="callAudioSelectToolbar"></select>
+        </label>
+      </div>
+      <div id="deviceDropdown" class="device-dropdown hidden">
+        <select id="quickSelect"></select>
+      </div>
+    </section>
+
+      <section class="panel tab-content" data-tab-content="settings">
+        <div class="panel-title">Settings</div>
+        <div class="settings-shell">
+          <nav class="settings-nav">
+            <button class="setting-btn active" data-setting="general">General</button>
+            <button class="setting-btn" data-setting="video">Video</button>
+            <button class="setting-btn" data-setting="audio">Audio</button>
+            <button class="setting-btn" data-setting="share">Share screen</button>
+            <button class="setting-btn" data-setting="accessibility">Accessibility</button>
+          </nav>
+
+          <div class="settings-content">
+            <div class="settings-section active" data-setting-content="general">
+              <div class="panel-subtitle">Appearance</div>
+              <div class="inline-fields">
+                <label>Theme
+                  <select>
+                    <option>System</option>
+                    <option>Light</option>
+                    <option>Dark</option>
+                  </select>
+                </label>
+                <label>Accent color
+                  <select>
+                    <option>Teal</option>
+                    <option>Blue</option>
+                    <option>Purple</option>
+                  </select>
+                </label>
+              </div>
+              <div class="status">UI appearance (visual only for now).</div>
+            </div>
+
+            <div class="settings-section" data-setting-content="video">
+              <div class="panel-subtitle">Camera</div>
+              <div class="inline-fields">
+                <label>Camera <select id="cameraSelect"></select></label>
+              </div>
+              <div class="actions">
+                <button id="btnTestCamSettings">Test Camera</button>
+                <button id="btnRefreshDevices" class="ghost">Refresh Devices</button>
+              </div>
+              <div class="preview-box">
+                <video id="localVideoSettings" autoplay playsinline muted></video>
+              </div>
+            </div>
+
+            <div class="settings-section" data-setting-content="audio">
+            <div class="panel-subtitle">Audio</div>
+            <div class="inline-fields">
+              <label>Microphone <select id="micSelect"></select></label>
+              <label>Speaker <select id="speakerSelect" disabled><option>System default</option></select></label>
+            </div>
+            <div class="actions">
+              <button id="btnTestMic">Test Mic</button>
+              <button id="btnToggleHQ" class="ghost">HQ Audio Off</button>
+            </div>
+              <div class="meter"><div id="micMeter" class="meter-fill"></div></div>
+            </div>
+
+            <div class="settings-section" data-setting-content="share">
+              <div class="panel-subtitle">Screen sharing</div>
+              <div class="inline-fields">
+                <label>Source <select id="screenSelect"></select></label>
+              </div>
+              <div class="actions">
+                <button id="btnShareScreenTest">Test Share Screen</button>
+              </div>
+              <div class="preview-box">
+                <video id="sharePreview" autoplay playsinline muted></video>
+              </div>
+            </div>
+
+            <div class="settings-section" data-setting-content="accessibility">
+              <div class="panel-subtitle">Accessibility</div>
+              <div class="status">Keyboard shortcuts and captions will live here (placeholder).</div>
+            </div>
+
+            <div class="status">Need help finding a device or screen? Use the Share Screen button or switch devices above.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel tab-content" data-tab-content="friends">
+        <div class="panel-title">Discover</div>
+        <div class="flex-row" style="gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+          <input id="contactsSearch" class="roster-search" type="text" placeholder="Search people...">
+          <select id="discoverRoleFilter" class="roster-search" style="max-width:180px;">
+            <option value="all">All roles</option>
+            <option value="producer">Producer</option>
+            <option value="engineer">Engineer</option>
+            <option value="vocalist">Vocalist</option>
+            <option value="musician">Musician</option>
+            <option value="songwriter">Songwriter</option>
+          </select>
+          <button id="btnContactsRefresh" class="pill ghost">Refresh</button>
+        </div>
+        <div id="contactsStatus" class="status">Sign in on CoverseHQ tab to load contacts.</div>
+        <div id="discoverGrid" class="discover-grid">No profiles yet.</div>
+        <div class="panel-subtitle" style="margin-top:12px;">Your Connections</div>
+        <div id="contactsList" class="contact-list">No contacts yet.</div>
+      </section>
+
+      <!-- Test tab removed; testing controls moved to Settings -->
+
+      <section class="panel tab-content" data-tab-content="messages">
+        <div class="panel-title">Messages</div>
+        <div class="flex-row" style="gap:8px;align-items:center;margin-bottom:8px;">
+          <button id="btnMessagesRefresh" class="pill ghost">Refresh</button>
+          <div id="messagesStatus" class="status">Sign in to load conversations.</div>
+        </div>
+        <div class="messages-grid">
+          <div class="messages-pane">
+            <div class="subhead">Conversations</div>
+            <div id="convoList" class="message-list">No conversations.</div>
+          </div>
+          <div class="messages-pane">
+            <div class="subhead" id="threadTitle">Select a conversation</div>
+          <div id="messagesList" class="message-thread">No messages.</div>
+          <div class="message-input">
+            <input id="messageText" type="text" placeholder="Type a message..." />
+            <button id="btnQuickInvite" class="pill ghost">Invite to call</button>
+            <button id="btnSendMessage" class="pill">Send</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+      <section class="panel tab-content full-panel" data-tab-content="site">
+        <div id="siteOverlay" class="site-overlay">
+          <div class="site-overlay-content">
+            <div id="siteWindowStatus" class="site-launcher-status">Loading CoverseHQ...</div>
+            <button id="btnSiteOpenExternal" class="pill ghost small">Open in Browser Instead</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Floating popout -->
+    <div id="popout" class="popout">
+      <div id="popoutHeader" class="popout-header">
+        <span>Call</span>
+        <div>
+          <button id="btnPopoutDock" class="pill ghost" style="padding:4px 8px;">Dock</button>
+        </div>
+      </div>
+      <div class="popout-body">
+        <div class="pop-videos">
+          <video id="popLocal" autoplay playsinline muted></video>
+          <div id="miniLocalBtn" class="mini-btn" style="top:6px; left:6px;">⇱</div>
+          <video id="popRemote" autoplay playsinline></video>
+          <div id="miniRemoteBtn" class="mini-btn" style="top:6px; right:6px;">⇱</div>
+        </div>
+        <div class="pop-invite">
+          <input id="popInviteInput" class="roster-search" type="text" placeholder="Invite email or link">
+          <button id="popInviteSend" class="pill ghost">Invite</button>
+        </div>
+        <div class="pop-remote-list">
+          <input id="popRemoteSearch" class="roster-search" type="text" placeholder="Filter remotes...">
+          <button id="popRemoteToggle" class="pill ghost">List</button>
+        </div>
+        <div class="pop-detach">
+          <button id="btnDetachLocal" class="pill ghost">Detach Mine</button>
+          <button id="btnDetachRemote" class="pill ghost">Detach Remote</button>
+        </div>
+        <button id="btnPopLevels" class="pill ghost pop-levels-btn">Show Levels</button>
+        <div id="popLevelsPanel" class="pop-levels hidden">
+          <div class="level-row">
+            <span>Talkback</span>
+            <div class="meter mono"><div class="level"></div></div>
+          </div>
+          <div class="level-row">
+            <span>HQ</span>
+            <div class="meter stereo"><div class="level"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden video elements required for WebRTC pipelines -->
+    <div class="hidden-pool">
+      <video id="localScreen" autoplay playsinline muted></video>
+      <video id="remoteVideo" autoplay playsinline></video>
+      <video id="remoteScreen" autoplay playsinline></video>
+    </div>
+
+    <!-- Advanced diagnostics hidden for end users -->
+  </div>
+
+  <!-- Join modal -->
+  <div id="joinModal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-title">Join a call</div>
+      <label class="stacked">
+        Meeting code
+        <input id="joinCodeInput" type="text" placeholder="123456" autocomplete="off">
+      </label>
+      <label class="stacked">
+        Your name
+        <input id="joinNameInput" type="text" placeholder="Name shown to others" autocomplete="off">
+      </label>
+      <div class="inline-checks">
+        <label><input id="joinNoAudio" type="checkbox"> Join with mic off</label>
+        <label><input id="joinNoVideo" type="checkbox"> Join with video off</label>
+      </div>
+      <div class="modal-actions">
+        <button id="btnJoinCancel" class="ghost">Cancel</button>
+        <button id="btnJoinConfirm">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pre-join modal -->
+  <div id="prejoin" class="modal-overlay" style="display:none;">
+    <div class="modal wide">
+      <div class="modal-title">Check your setup</div>
+      <div class="prejoin-grid">
+        <div>
+          <div class="panel-subtitle">Preview</div>
+          <div class="mini-preview large">
+            <video id="localVideo" autoplay playsinline muted></video>
+          </div>
+        </div>
+        <div>
+          <div class="panel-subtitle">Devices</div>
+          <div class="inline-fields">
+            <label>Camera <select id="cameraSelectPre" disabled></select></label>
+            <label>Mic <select id="micSelectPre" disabled></select></label>
+            <label>Speakers <select id="speakerSelect" disabled></select></label>
+          </div>
+          <div class="inline-checks">
+            <label><input id="prejoinMuteAudio" type="checkbox"> Mute on join</label>
+            <label><input id="prejoinMuteVideo" type="checkbox"> Camera off on join</label>
+          </div>
+          <div class="actions">
+            <button id="btnTestMic">Test Mic</button>
+            <button id="btnTestCamPre">Test Camera</button>
+          </div>
+          <div class="meter"><div id="micMeterPreview" class="meter-fill"></div></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnPrejoinCancel" class="ghost">Cancel</button>
+        <button id="btnEnterCall">Enter Call</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Discord-Style Session Container - Full Screen Call View -->
+  <div id="sessionContainer" class="session-container">
+    <!-- Top Bar - Breadcrumb and Status -->
+    <div class="session-top-bar">
+      <div class="session-breadcrumb">
+        <svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+        <div class="breadcrumb-server">
+          <span>Main</span>
+        </div>
+        <span class="breadcrumb-separator">·</span>
+        <div class="breadcrumb-stream" id="breadcrumbStream" style="display: none;">
+          <span class="breadcrumb-stream-name" id="streamName">Screen Share</span>
+          <div class="breadcrumb-icons">
+            <div class="session-profile">Y</div>
+          </div>
+        </div>
+      </div>
+      <div class="session-status-badges">
+        <div class="status-badge enabled">
+          <svg viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+          <span>Enabled</span>
+        </div>
+        <div class="status-badge quality" id="qualityBadge" style="display: none;">
+          <svg viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Z"/></svg>
+          <span>1080p 60FPS</span>
+        </div>
+        <div class="status-badge live" id="liveBadge" style="display: none;">
+          <span>LIVE</span>
+        </div>
+      </div>
+      <div class="session-top-right">
+        <div class="session-profile" id="sessionProfile">Y</div>
+      </div>
+    </div>
+    
+    <!-- Main Stage - Screen Share / Focus View -->
+    <div class="session-stage" id="sessionStage">
+      <video class="stage-video hidden" id="stageVideo" autoplay playsinline></video>
+      <div class="stage-placeholder" id="stagePlaceholder">
+        <svg viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"/></svg>
+        <span>No one is sharing their screen</span>
+      </div>
+      <div class="stage-label" id="stageLabel">
+        <svg viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Z"/></svg>
+        <span id="stageLabelName">Your Screen</span>
+      </div>
+      <button class="stage-focus-btn" id="btnStageFocus" title="Focus">
+        <svg viewBox="0 0 256 256"><path d="M216,48V96a8,8,0,0,1-16,0V67.31l-42.34,42.35a8,8,0,0,1-11.32-11.32L188.69,56H160a8,8,0,0,1,0-16h48A8,8,0,0,1,216,48Z"/></svg>
+      </button>
+    </div>
+    
+    <!-- Bottom Right Controls (Volume, Fullscreen) -->
+    <div class="session-bottom-right">
+      <button class="bottom-right-btn" id="btnVolume" title="Volume">
+        <svg viewBox="0 0 256 256"><path d="M155.51,24.81a8,8,0,0,0-8.42.88L77.25,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V32A8,8,0,0,0,155.51,24.81ZM144,207.64,92.91,168H32V88H92.91L144,48.36ZM208,128a39.93,39.93,0,0,1-10,26.46,8,8,0,0,1-12-10.58,24,24,0,0,0,0-31.72,8,8,0,1,1,12-10.58A40,40,0,0,1,208,128Z"/></svg>
+      </button>
+      <button class="bottom-right-btn" id="btnFullscreen" title="Fullscreen">
+        <svg viewBox="0 0 256 256"><path d="M216,48V96a8,8,0,0,1-16,0V67.31l-42.34,42.35a8,8,0,0,1-11.32-11.32L188.69,56H160a8,8,0,0,1,0-16h48A8,8,0,0,1,216,48ZM98.34,146.34,56,188.69V160a8,8,0,0,0-16,0v48a8,8,0,0,0,8,8H96a8,8,0,0,0,0-16H67.31l42.35-42.34a8,8,0,0,0-11.32-11.32Z"/></svg>
+      </button>
+    </div>
+    
+    <!-- Participant Tiles - Horizontal Row -->
+    <div class="session-participants" id="participantTiles">
+      <!-- Tiles rendered by JavaScript -->
+    </div>
+    
+    <!-- Control Bar -->
+    <div class="session-controls">
+      <!-- Mic with dropdown -->
+      <div class="control-group" style="position: relative;">
+        <button class="control-btn" id="btnMic" title="Microphone">
+          <svg viewBox="0 0 256 256"><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,143.6V240a8,8,0,0,1-16,0V207.6A80.11,80.11,0,0,1,48,128a8,8,0,0,1,16,0,64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.11,80.11,0,0,1,136,207.6Z"/></svg>
+        </button>
+        <button class="control-dropdown" id="btnMicDropdown">
+          <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+        </button>
+        <div class="device-menu" id="micMenu">
+          <div class="device-menu-title">Input Devices</div>
+          <div class="device-list" id="micDeviceList"></div>
+        </div>
+      </div>
+      
+      <!-- Camera with dropdown -->
+      <div class="control-group" style="position: relative;">
+        <button class="control-btn muted" id="btnCamera" title="Camera">
+          <svg viewBox="0 0 256 256"><path d="M213.92,210.62a8,8,0,1,1-11.84,10.76l-30-33A16,16,0,0,1,160,200H32A16,16,0,0,1,16,184V72A16,16,0,0,1,32,56H51.73L42.08,45.38A8,8,0,1,1,53.92,34.62ZM251.77,73a8,8,0,0,0-8.21.39L208,97.05V72a16,16,0,0,0-16-16H113.06L227.31,184.22a8,8,0,0,0,5.92,2.61,7.93,7.93,0,0,0,4.56-1.44l6.22-4.32A8,8,0,0,0,248,176V80A8,8,0,0,0,251.77,73Z"/></svg>
+        </button>
+        <button class="control-dropdown" id="btnCameraDropdown">
+          <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+        </button>
+        <div class="device-menu" id="cameraMenu">
+          <div class="device-menu-title">Camera Devices</div>
+          <div class="device-list" id="cameraDeviceList"></div>
+        </div>
+      </div>
+      
+      <div class="control-divider"></div>
+      
+      <!-- Screen Share -->
+      <button class="control-single" id="btnScreenShare" title="Share Screen">
+        <svg viewBox="0 0 256 256"><path d="M232,56V200a16,16,0,0,1-16,16H144a8,8,0,0,1,0-16h72V56H40V96a8,8,0,0,1-16,0V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM32,184a8,8,0,0,0,0,16,8,8,0,0,1,8,8,8,8,0,0,0,16,0A24,24,0,0,0,32,184Zm0-32a8,8,0,0,0,0,16,40,40,0,0,1,40,40,8,8,0,0,0,16,0A56.06,56.06,0,0,0,32,152Zm0-32a8,8,0,0,0,0,16,72.08,72.08,0,0,1,72,72,8,8,0,0,0,16,0A88.1,88.1,0,0,0,32,120Z"/></svg>
+      </button>
+      
+      <!-- Grid View -->
+      <button class="control-single" id="btnGridView" title="Grid View">
+        <svg viewBox="0 0 256 256"><path d="M216,48H40A16,16,0,0,0,24,64V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48ZM104,192H40V136h64Zm0-72H40V64h64Zm72,72H120V136h56Zm0-72H120V64h56Zm40,72H192V136h24Zm0-72H192V64h24Z"/></svg>
+      </button>
+      
+      <!-- Reactions -->
+      <button class="control-single" id="btnReactions" title="Reactions">
+        <svg viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216ZM80,108a12,12,0,1,1,12,12A12,12,0,0,1,80,108Zm96,0a12,12,0,1,1-12-12A12,12,0,0,1,176,108Zm-1.08,64a56,56,0,0,1-93.84,0,8,8,0,1,1,13.42-8.7,40,40,0,0,0,67,0,8,8,0,0,1,13.42,8.7Z"/></svg>
+      </button>
+      
+      <!-- More Options -->
+      <button class="control-single" id="btnMore" title="More">
+        <svg viewBox="0 0 256 256"><path d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128Zm56-12a12,12,0,1,0,12,12A12,12,0,0,0,196,116ZM60,116a12,12,0,1,0,12,12A12,12,0,0,0,60,116Z"/></svg>
+      </button>
+      
+      <div class="control-divider"></div>
+      
+      <!-- Disconnect -->
+      <button class="control-disconnect" id="btnDisconnect" title="Disconnect">
+        <svg viewBox="0 0 256 256"><path d="M232,128a8,8,0,0,1-8,8H152v64a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h96V56a8,8,0,0,1,16,0v64h72A8,8,0,0,1,232,128Z" transform="rotate(45 128 128)"/></svg>
+      </button>
+    </div>
+    
+    <!-- Side Chat Panel (overlay) -->
+    <div class="side-chat-panel" id="sideChatPanel">
+      <div class="side-chat-header">
+        <span class="side-chat-title"># general</span>
+        <button class="side-chat-close" id="btnCloseSideChat">
+          <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="side-chat-messages" id="sideChatMessages">
+        <div class="side-chat-message">
+          <div class="side-chat-avatar">A</div>
+          <div class="side-chat-content">
+            <div class="side-chat-author">Alex</div>
+            <div class="side-chat-text">Hey everyone, starting the session now!</div>
+          </div>
+        </div>
+      </div>
+      <div class="side-chat-input-area">
+        <div class="side-chat-input-wrapper">
+          <input type="text" class="side-chat-input" id="sideChatInput" placeholder="Message #general">
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="session.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
+
+<!-- share preview placeholder -->
+

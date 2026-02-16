@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoVerse | Login</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Inter font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Load Material Icons for UI elements -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <!-- Custom Tailwind Configuration for Dark Theme & Teal Accent -->
+    <style>
+        :root {
+            /* Define the primary teal accent color */
+            --color-teal: #20c997;
+            /* Define the background and card colors */
+            --color-charcoal-dark: #0f0f12;
+            --color-charcoal-medium: #1a1a1f;
+            /* Define the futuristic/tech-gothic font */
+            --font-display: 'Chakra Petch', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        /* Import the custom futuristic font (e.g., Chakra Petch for titles) */
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&display=swap');
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--color-charcoal-dark);
+            color: #e5e7eb; /* Light gray text for dark mode */
+        }
+        .text-teal { color: var(--color-teal); }
+        .bg-teal { background-color: var(--color-teal); }
+
+        /* Style for the custom display font (CoVerse Logo) */
+        .coverse-logo {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            letter-spacing: 0.1em;
+            text-shadow: 0 0 10px rgba(32, 201, 151, 0.5); /* Subtle teal glow */
+        }
+        .coverse-card {
+            background-color: var(--color-charcoal-medium);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="coverse-card w-full max-w-sm mx-auto p-8 md:p-10 rounded-xl shadow-2xl border border-gray-700/50">
+
+        <!-- Logo/Title -->
+        <h1 class="coverse-logo text-teal text-center mb-10 select-none">COVERSE</h1>
+        <p class="text-gray-400 text-center mb-8 text-sm">Sign in to the Professional Music & Media Ecosystem</p>
+
+        <!-- Login Form -->
+        <form id="loginForm">
+            <!-- Email Field -->
+            <div class="mb-5">
+                <label for="email" class="block text-sm font-medium text-gray-400 mb-2">Email Address</label>
+                <input type="email" id="email" class="w-full px-4 py-2 bg-gray-700/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal text-white placeholder-gray-500 transition duration-200" placeholder="your.name@example.com" required>
+            </div>
+
+            <!-- Display Name (Signup only) -->
+            <div class="mb-5 hidden" id="displayNameGroup">
+                <label for="displayName" class="block text-sm font-medium text-gray-400 mb-2">Display Name</label>
+                <input type="text" id="displayName" class="w-full px-4 py-2 bg-gray-700/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal text-white placeholder-gray-500 transition duration-200" placeholder="Your artist name">
+            </div>
+
+            <!-- Password Field -->
+            <div class="mb-6">
+                <label for="password" class="block text-sm font-medium text-gray-400 mb-2">Password</label>
+                <div class="relative">
+                    <input type="password" id="password" class="w-full px-4 py-2 bg-gray-700/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal text-white placeholder-gray-500 transition duration-200 pr-16" placeholder="Your password" required>
+                    <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-teal hover:text-white transition" onclick="togglePasswordVisibility('password', this)">Show</button>
+                </div>
+            </div>
+
+            <!-- Confirm Password (Signup only) -->
+            <div class="mb-6 hidden" id="confirmPasswordGroup">
+                <label for="confirmPassword" class="block text-sm font-medium text-gray-400 mb-2">Confirm Password</label>
+                <div class="relative">
+                    <input type="password" id="confirmPassword" class="w-full px-4 py-2 bg-gray-700/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal text-white placeholder-gray-500 transition duration-200 pr-16" placeholder="Confirm password">
+                    <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-teal hover:text-white transition" onclick="togglePasswordVisibility('confirmPassword', this)">Show</button>
+                </div>
+            </div>
+
+            <!-- Forgot Password & Remember Me -->
+            <div class="flex items-center justify-between mb-8 text-sm">
+                <div class="flex items-center">
+                    <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 bg-gray-700 border-gray-600 rounded text-teal focus:ring-teal">
+                    <label for="remember-me" class="ml-2 text-gray-400">Remember Me</label>
+                </div>
+                <a href="#" id="forgotPasswordLink" class="text-teal hover:text-white transition duration-200">Forgot Password?</a>
+            </div>
+
+            <!-- Log In Button -->
+            <button id="authSubmitBtn" type="submit" class="w-full bg-teal text-gray-900 font-bold py-3 rounded-lg hover:bg-opacity-90 transition duration-300 shadow-lg shadow-teal/50 mb-4 uppercase tracking-wider">
+                Log In
+            </button>
+
+            <!-- Divider -->
+            <div class="flex items-center mb-4">
+                <div class="flex-1 border-t border-gray-600"></div>
+                <span class="px-3 text-gray-500 text-sm">or</span>
+                <div class="flex-1 border-t border-gray-600"></div>
+            </div>
+
+            <!-- Google Sign-In Button -->
+            <button type="button" id="googleSignIn" class="w-full bg-white text-gray-700 font-medium py-3 rounded-lg hover:bg-gray-50 transition duration-300 shadow-lg mb-4 flex items-center justify-center border border-gray-300">
+                <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span id="googleBtnText">Continue with Google</span>
+            </button>
+
+            <!-- Sign Up Link -->
+            <p class="text-center text-gray-400 text-sm">
+                <span id="authPromptText">Don't have an account?</span>
+                <a href="#" id="showSignup" class="text-teal font-medium hover:underline transition duration-200">Sign Up</a>
+            </p>
+        </form>
+
+        <!-- Simple Message Box -->
+        <div id="messageBox" class="hidden mt-6 p-3 rounded-lg text-sm bg-teal/20 text-teal border border-teal/50" role="alert"></div>
+    </div>
+
+    <!-- Firebase SDK and Authentication Script -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
+        import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, setPersistence, browserLocalPersistence, browserSessionPersistence, signInWithCredential } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBpMgWjeIVXYtoBn4TOlsXYPXM0FMOKE1Y",
+            authDomain: "coverse-390b0.firebaseapp.com",
+            projectId: "coverse-390b0",
+            storageBucket: "coverse-390b0.firebasestorage.app",
+            messagingSenderId: "129365928431",
+            appId: "1:129365928431:web:e1dfee8a49db78e4026e1a",
+            measurementId: "G-FR3HWCE77R"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Detect Electron environment
+        const isElectron = !!(window.coverse?.isElectron);
+
+        // === JUCE PLUGIN / VST MODE DETECTION ===
+        const urlParams = new URLSearchParams(window.location.search);
+        const callbackUrl = urlParams.get('callback');
+        const isVST = urlParams.get('vst') === 'true' || urlParams.get('embedded') === 'true';
+        const isExternalBrowserMode = urlParams.get('external') === '1';
+        let externalAuthPollTimer = null;
+        let externalAuthPollInFlight = false;
+
+        function isValidCallback(url) {
+            if (!url) return false;
+            return url.startsWith('http://127.0.0.1:') || 
+                   url.startsWith('http://localhost:');
+        }
+
+        async function redirectToCallback(user, authPayload = {}) {
+            if (callbackUrl && isValidCallback(callbackUrl)) {
+                const idToken = await user.getIdToken();
+                const callbackToken = authPayload.googleIdToken || idToken;
+                const tokenType = authPayload.googleIdToken ? 'google-id-token' : 'firebase-id-token';
+                const displayName = user.displayName || user.email || 'User';
+                window.location.href = `${callbackUrl}?token=${encodeURIComponent(callbackToken)}&tokenType=${encodeURIComponent(tokenType)}&username=${encodeURIComponent(displayName)}`;
+                return true;
+            }
+            return false;
+        }
+
+        async function ensureUserProfile(user, displayNameOverride = '') {
+            try {
+                const userRef = doc(db, 'users', user.uid);
+                const snap = await getDoc(userRef);
+                if (!snap.exists()) {
+                    const displayName = displayNameOverride
+                        || user.displayName
+                        || user.email?.split('@')[0]
+                        || 'Creator';
+                    await setDoc(userRef, {
+                        uid: user.uid,
+                        email: user.email || '',
+                        displayName,
+                        avatarUrl: user.photoURL || 'https://coversehq.com/photos/wave.png',
+                        createdAt: serverTimestamp()
+                    }, { merge: true });
+                }
+            } catch (error) {
+                console.error('Error creating user profile:', error);
+            }
+        }
+
+        async function handleAuthSuccess(user, displayNameOverride = '', authPayload = {}) {
+            await ensureUserProfile(user, displayNameOverride);
+            // Try JUCE callback first
+            if (await redirectToCallback(user, authPayload)) return;
+            
+            // Electron desktop app flow - navigate using current origin to stay on local server
+            const currentOrigin = window.location.origin;
+            window.location.href = currentOrigin + '/pages/app.html';
+        }
+
+        const messageBox = document.getElementById('messageBox');
+        function showMessage(text, isError = false) {
+            if (!messageBox) return;
+            messageBox.textContent = text;
+            messageBox.classList.remove('hidden');
+            messageBox.classList.toggle('bg-teal/20', !isError);
+            messageBox.classList.toggle('text-teal', !isError);
+            messageBox.classList.toggle('border-teal/50', !isError);
+            messageBox.classList.toggle('bg-red-500/20', isError);
+            messageBox.classList.toggle('text-red-400', isError);
+            messageBox.classList.toggle('border-red-500/50', isError);
+        }
+
+        const loginForm = document.getElementById('loginForm');
+        const displayNameGroup = document.getElementById('displayNameGroup');
+        const confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
+        const authSubmitBtn = document.getElementById('authSubmitBtn');
+        const authPromptText = document.getElementById('authPromptText');
+        const toggleSignupLink = document.getElementById('showSignup');
+        const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+        const rememberMe = document.getElementById('remember-me');
+
+        let isSignupMode = false;
+
+        async function applySelectedPersistence() {
+            const persistence = rememberMe?.checked ? browserLocalPersistence : browserSessionPersistence;
+            await setPersistence(auth, persistence);
+        }
+
+        window.togglePasswordVisibility = function(fieldId, buttonEl) {
+            const input = document.getElementById(fieldId);
+            if (!input || !buttonEl) return;
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            buttonEl.textContent = isHidden ? 'Hide' : 'Show';
+        };
+
+        function setAuthMode(mode) {
+            isSignupMode = mode === 'signup';
+            if (displayNameGroup) displayNameGroup.classList.toggle('hidden', !isSignupMode);
+            if (confirmPasswordGroup) confirmPasswordGroup.classList.toggle('hidden', !isSignupMode);
+            if (forgotPasswordLink) forgotPasswordLink.classList.toggle('hidden', isSignupMode);
+            if (authSubmitBtn) authSubmitBtn.textContent = isSignupMode ? 'Create Account' : 'Log In';
+            if (authPromptText) authPromptText.textContent = isSignupMode ? 'Already have an account?' : "Don't have an account?";
+            if (toggleSignupLink) toggleSignupLink.textContent = isSignupMode ? 'Log In' : 'Sign Up';
+        }
+
+        if (toggleSignupLink) {
+            toggleSignupLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                setAuthMode(isSignupMode ? 'login' : 'signup');
+            });
+        }
+
+        if (loginForm) {
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('email')?.value?.trim();
+                const password = document.getElementById('password')?.value || '';
+                const displayName = document.getElementById('displayName')?.value?.trim();
+                const confirmPassword = document.getElementById('confirmPassword')?.value || '';
+
+                if (!email || !password) {
+                    showMessage('Enter email and password.', true);
+                    return;
+                }
+
+                const persistence = rememberMe?.checked ? browserLocalPersistence : browserSessionPersistence;
+                await setPersistence(auth, persistence);
+
+                try {
+                    if (isSignupMode) {
+                        if (password !== confirmPassword) {
+                            showMessage('Passwords do not match.', true);
+                            return;
+                        }
+                        const result = await createUserWithEmailAndPassword(auth, email, password);
+                        if (displayName) {
+                            await updateProfile(result.user, { displayName });
+                        }
+                        await handleAuthSuccess(result.user, displayName);
+                    } else {
+                        const result = await signInWithEmailAndPassword(auth, email, password);
+                        await handleAuthSuccess(result.user);
+                    }
+                } catch (error) {
+                    console.error('Auth error:', error);
+                    showMessage(error.message || 'Authentication failed.', true);
+                }
+            });
+        }
+        // === END JUCE PLUGIN CALLBACK SUPPORT ===
+
+        // Check auth state on page load
+        onAuthStateChanged(auth, async (user) => {
+            if (isExternalBrowserMode) {
+                return;
+            }
+            if (user) {
+                await handleAuthSuccess(user);
+                // Post auth info to parent (Electron/VST) for token pickup
+                try {
+                    const idToken = await user.getIdToken(false);
+                    window.parent.postMessage({
+                        type: 'coverse-auth',
+                        idToken,
+                        user: {
+                            uid: user.uid,
+                            displayName: user.displayName || '',
+                            email: user.email || '',
+                            photoURL: user.photoURL || ''
+                        }
+                    }, '*');
+                } catch (e) {
+                    console.warn('postMessage auth failed', e);
+                }
+            }
+        });
+
+        // Check for redirect result (used when popup is blocked in VST/WebView)
+        getRedirectResult(auth).then(async (result) => {
+            if (result && result.user) {
+                await handleAuthSuccess(result.user);
+            }
+        }).catch((error) => {
+            console.error('Redirect result error:', error);
+        });
+
+        function stopExternalAuthPolling() {
+            if (externalAuthPollTimer) {
+                clearInterval(externalAuthPollTimer);
+                externalAuthPollTimer = null;
+            }
+            externalAuthPollInFlight = false;
+        }
+
+        async function startExternalAuthPolling(btn, btnText) {
+            stopExternalAuthPolling();
+            let attempts = 0;
+            const maxAttempts = 240;
+
+            externalAuthPollTimer = setInterval(async () => {
+                if (externalAuthPollInFlight) return;
+                externalAuthPollInFlight = true;
+                try {
+                    attempts += 1;
+                    const payload = await window.coverse?.consumeExternalAuth?.();
+                    if (payload?.token) {
+                        stopExternalAuthPolling();
+                        if (btnText) btnText.textContent = 'Signing in...';
+                        if (payload.tokenType !== 'google-id-token') {
+                            throw new Error(`Unsupported external token type: ${payload.tokenType || 'unknown'}`);
+                        }
+                        await applySelectedPersistence();
+                        const credential = GoogleAuthProvider.credential(payload.token);
+                        const result = await signInWithCredential(auth, credential);
+                        if (result?.user) {
+                            if (btnText) btnText.textContent = 'Success!';
+                            await handleAuthSuccess(result.user);
+                            return;
+                        }
+                    }
+
+                    if (attempts >= maxAttempts) {
+                        stopExternalAuthPolling();
+                        if (btnText) btnText.textContent = 'Continue with Google';
+                        if (btn) btn.disabled = false;
+                        showMessage('Login timed out. Try again and complete sign-in in your browser tab.', true);
+                    }
+                } catch (error) {
+                    stopExternalAuthPolling();
+                    console.error('[login] External auth polling failed:', error);
+                    if (btnText) btnText.textContent = 'Continue with Google';
+                    if (btn) btn.disabled = false;
+                    showMessage('External browser login failed. Please retry and choose an account in your browser.', true);
+                } finally {
+                    externalAuthPollInFlight = false;
+                }
+            }, 1000);
+        }
+
+        async function signInWithGoogleExternalInElectron(btn, btnText) {
+            if (!window.coverse?.openExternal || !window.coverse?.getExternalLoginUrl) {
+                throw new Error('External login bridge is unavailable.');
+            }
+            const externalLoginUrl = await window.coverse.getExternalLoginUrl();
+            if (!externalLoginUrl) {
+                throw new Error('Could not create external login URL.');
+            }
+            await window.coverse.openExternal(externalLoginUrl);
+            if (btnText) btnText.textContent = 'Complete sign-in in browser...';
+            showMessage('Browser opened. Choose your Google account there, then return to Coverse.');
+            await startExternalAuthPolling(btn, btnText);
+        }
+
+// Google Sign-In handler - uses Firebase's built-in popup
+        async function signInWithGoogle() {
+            const btnText = document.getElementById('googleBtnText');
+            const btn = document.getElementById('googleSignIn');
+            
+            console.log('[login] signInWithGoogle called, isElectron:', isElectron, 'isVST:', isVST);
+            if (btnText) btnText.textContent = 'Opening...';
+            if (btn) btn.disabled = true;
+            
+            try {
+                if (isElectron && !isExternalBrowserMode) {
+                    await signInWithGoogleExternalInElectron(btn, btnText);
+                    return;
+                }
+
+                const provider = new GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' });
+                await applySelectedPersistence();
+                
+                console.log('[login] Calling signInWithPopup...');
+                if (btnText) btnText.textContent = 'Waiting for Google...';
+                
+                const result = await signInWithPopup(auth, provider);
+                console.log('[login] signInWithPopup returned:', result);
+                if (result?.user) {
+                    const googleCred = GoogleAuthProvider.credentialFromResult(result);
+                    const googleIdToken = googleCred?.idToken || '';
+                    if (btnText) btnText.textContent = 'Success!';
+                    await handleAuthSuccess(result.user, '', { googleIdToken });
+                }
+            } catch (error) {
+                console.error('[login] Sign-in error:', error.code, error.message);
+                if (btnText) btnText.textContent = 'Continue with Google';
+                if (btn) btn.disabled = false;
+                
+                if (error.code === 'auth/popup-closed-by-user') {
+                    showMessage('Sign-in popup was closed. Click the button to try again.', true);
+                } else if (error.code === 'auth/popup-blocked') {
+                    showMessage('Popup was blocked. Please allow popups and try again.', true);
+                } else if (error.code === 'auth/unauthorized-domain') {
+                    showMessage('This domain is not authorized. Add 127.0.0.1 to Firebase authorized domains.', true);
+                } else {
+                    showMessage('Login failed: ' + (error.message || 'Unknown error'), true);
+                }
+            }
+        }
+        
+        // Attach click handler
+        document.getElementById('googleSignIn')?.addEventListener('click', signInWithGoogle);
+        window.addEventListener('beforeunload', stopExternalAuthPolling);
+    </script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "name": "coverse",
+  "version": "1.0.1",
+  "description": "Coverse - Music Collaboration App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev:web": "http-server -p 8080 .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "release:win": "electron-builder --win --publish always",
+    "verify:update": "node scripts/verify-update.js",
+    "test:update": "node --test tests/update-manager.test.js tests/update-ipc-shape.test.js",
+    "test": "npm run test:update",
+    "signal:dev": "node signaling-server.js",
+    "firebase:rules": "firebase deploy --only firestore:rules,storage",
+    "firebase:rules:firestore": "firebase deploy --only firestore:rules",
+    "firebase:rules:storage": "firebase deploy --only storage"
+  },
+  "author": "Coverse",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^26.7.0",
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "electron-updater": "^6.7.3",
+    "ws": "^8.14.2"
+  },
+  "build": {
+    "appId": "com.coverse.app",
+    "productName": "Coverse",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png",
+      "artifactName": "Coverse-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Jsalv4",
+        "repo": "CoverseDesktop",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

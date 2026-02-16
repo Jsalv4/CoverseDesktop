@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Coverse WebRTC Test</title>
+  <style>
+    body { font-family: sans-serif; background: #0d0d0d; color: #e9f5ff; padding: 16px; }
+    .row { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    input { padding: 8px; border-radius: 6px; border: 1px solid #1f3240; min-width: 240px; background: #0c1219; color: #e9f5ff; }
+    button { padding: 8px 12px; border-radius: 6px; border: 1px solid #00aaff; background: linear-gradient(135deg,#00ff88 0%,#00aaff 100%); color: #0d0d0d; font-weight: 600; cursor: pointer; }
+    video { width: 45%; max-width: 320px; background: #000; border: 1px solid #1f3240; border-radius: 8px; }
+    .status { margin-top: 6px; color: #7cd8ff; }
+  </style>
+</head>
+<body>
+  <h2>Coverse WebRTC Test (Browser)</h2>
+  <div class="row">
+    <input id="room" placeholder="room name">
+    <input id="signalUrl" placeholder="wss://coversehq.com">
+    <input id="token" placeholder="token (optional)">
+  </div>
+  <div class="row">
+    <button id="start">Start / Join</button>
+    <button id="hangup">Hang Up</button>
+    <button id="share">Share Screen</button>
+  </div>
+  <div class="status" id="status">Idle</div>
+  <div class="row">
+    <div>
+      <div>Local</div>
+      <video id="local" autoplay playsinline muted></video>
+    </div>
+    <div>
+      <div>Remote</div>
+      <video id="remote" autoplay playsinline></video>
+    </div>
+  </div>
+  <script src="test-webrtc.js"></script>
+</body>
+</html>

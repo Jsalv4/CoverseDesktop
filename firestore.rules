@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read, write: if isSelf(uid);
+
+      match /library/{fileId} {
+        allow read, write: if isSelf(uid);
+      }
+    }
+
+    match /userLibraries/{uid} {
+      allow read, write: if isSelf(uid);
+    }
+
+    match /library/{fileId} {
+      allow read: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.uid == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.ownerUid == request.auth.uid ||
+        request.resource.data.uid == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.uid == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerUid;
+    }
+
+    match /sessionInvites/{inviteId} {
+      allow read: if isSignedIn() && (
+        resource.data.toUid == request.auth.uid ||
+        resource.data.fromUid == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.fromUid == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.toUid == request.auth.uid ||
+        resource.data.fromUid == request.auth.uid
+      );
+      allow delete: if isSignedIn() && resource.data.fromUid == request.auth.uid;
+    }
+
+    match /follows/{followId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.resource.data.follower == request.auth.uid;
+      allow update: if false;
+    }
+
+    match /friendRequests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.fromUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+    }
+
+    match /conversations/{conversationId} {
+      allow read, write: if isSignedIn() && request.auth.uid in resource.data.participants;
+    }
+
+    match /messages/{messageId} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}

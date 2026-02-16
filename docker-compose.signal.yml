@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  signaling:
+    build:
+      context: .
+      dockerfile: signal/Dockerfile
+    environment:
+      - SIGNALING_PORT=7000
+      - SIGNALING_TOKEN=changeme
+    ports:
+      - "7000:7000"
+    restart: unless-stopped

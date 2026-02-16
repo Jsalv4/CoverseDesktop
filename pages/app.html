@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: mediastream: https:; connect-src 'self' ws: wss: https://coversehq.com https://*.coversehq.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://firestore.googleapis.com;">
+  <title>Coverse</title>
+  <link rel="stylesheet" href="../styles/app.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- ============================================
+         SESSION BAR (Server list - 72px)
+         ============================================ -->
+    <div class="session-bar" id="sessionBar">
+      <!-- Home button -->
+      <div class="home-btn active" id="btnHome" title="Home">
+        <svg viewBox="0 0 256 256"><path d="M224,115.55V208a16,16,0,0,1-16,16H168a16,16,0,0,1-16-16V168a8,8,0,0,0-8-8H112a8,8,0,0,0-8,8v40a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V115.55a16,16,0,0,1,5.17-11.78l80-75.48a16,16,0,0,1,21.66,0l80,75.48A16,16,0,0,1,224,115.55Z"/></svg>
+      </div>
+      
+      <div class="session-bar-divider"></div>
+      
+      <!-- Session icons will be loaded dynamically from user's profile -->
+      
+      <div class="session-bar-divider"></div>
+      
+      <!-- Add session button -->
+      <div class="add-session-btn" id="btnAddSession" title="Create or Join Session">
+        <svg viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+      </div>
+    </div>
+
+    <!-- ============================================
+         CHANNEL BAR (240px)
+         ============================================ -->
+    <div class="channel-bar" id="channelBar">
+      <!-- Session header -->
+      <div class="session-header" id="sessionHeader">
+        <h2 id="currentSessionName">Coverse</h2>
+        <div class="session-header-actions">
+          <button class="session-invite-btn hidden" id="btnCopySessionInvite" title="Copy Session Invite Code">Invite</button>
+          <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+        </div>
+      </div>
+      
+      <!-- Home sidebar (Friends/DMs) - shown when Home is selected -->
+      <div class="home-sidebar" id="homeSidebar">
+        <!-- Search/Add friends -->
+        <div class="sidebar-search">
+          <input type="text" placeholder="Find or start a conversation" id="friendSearch">
+        </div>
+        
+        <!-- Navigation -->
+        <div class="home-nav">
+          <div class="home-nav-item active" id="navFriends" data-view="friends">
+            <svg viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/></svg>
+            <span>Friends</span>
+          </div>
+          <div class="home-nav-item" id="navLibrary" data-view="library">
+            <svg viewBox="0 0 256 256"><path d="M83.19,174.4a8,8,0,0,0,11.21-1.6,52,52,0,0,1,67.2,0,8,8,0,1,0,9.6-12.8,68,68,0,0,0-86.4,0A8,8,0,0,0,83.19,174.4ZM128,72a88,88,0,0,0-88,88,8,8,0,0,0,16,0,72,72,0,0,1,144,0,8,8,0,0,0,16,0A88,88,0,0,0,128,72Zm0,32a56,56,0,0,0-56,56,8,8,0,0,0,16,0,40,40,0,0,1,80,0,8,8,0,0,0,16,0A56,56,0,0,0,128,104Z"/></svg>
+            <span>Library</span>
+          </div>
+        </div>
+        
+        <!-- Direct Messages header -->
+        <div class="dm-header">
+          <span>Direct Messages</span>
+          <button class="dm-add-btn" id="btnNewDM" title="New Message">
+            <svg viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+          </button>
+        </div>
+        
+        <!-- DM list -->
+        <div class="dm-list" id="dmList">
+          <!-- DMs loaded dynamically -->
+          <div class="dm-empty">No messages yet</div>
+        </div>
+      </div>
+      
+      <!-- Channel list (shown when a session is selected) -->
+      <div class="channel-list hidden" id="channelList">
+        <!-- Events/Info -->
+        <div class="channel-item" data-channel="events" data-type="info">
+          <svg viewBox="0 0 256 256"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Z"/></svg>
+          <span class="channel-name">Events</span>
+        </div>
+        
+        <!-- Text Channels category -->
+        <div class="channel-category" data-category="text">
+          <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+          <span class="category-name">Text Channels</span>
+          <div class="category-actions">
+            <svg viewBox="0 0 256 256" title="Create Channel"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+          </div>
+        </div>
+        
+        <div class="channel-item" data-channel="general" data-type="text">
+          <svg viewBox="0 0 256 256"><path d="M224,88H175.4l8.47-46.57a8,8,0,0,0-15.74-2.86l-9,49.43H111.4l8.47-46.57a8,8,0,0,0-15.74-2.86L95.14,88H48a8,8,0,0,0,0,16H92.23L81.14,168H32a8,8,0,0,0,0,16H78.23l-8.47,46.57a8,8,0,0,0,6.44,9.3A7.79,7.79,0,0,0,77.63,240a8,8,0,0,0,7.87-6.57l9-49.43h47.72l-8.47,46.57a8,8,0,0,0,6.44,9.3,7.79,7.79,0,0,0,1.43.13,8,8,0,0,0,7.87-6.57l9-49.43H208a8,8,0,0,0,0-16H161.77l11.09-64H224a8,8,0,0,0,0-16Zm-76.49,80H99.77l11.09-64h47.72Z"/></svg>
+          <span class="channel-name">general</span>
+        </div>
+        
+        <div class="channel-item" data-channel="files" data-type="text">
+          <svg viewBox="0 0 256 256"><path d="M224,88H175.4l8.47-46.57a8,8,0,0,0-15.74-2.86l-9,49.43H111.4l8.47-46.57a8,8,0,0,0-15.74-2.86L95.14,88H48a8,8,0,0,0,0,16H92.23L81.14,168H32a8,8,0,0,0,0,16H78.23l-8.47,46.57a8,8,0,0,0,6.44,9.3A7.79,7.79,0,0,0,77.63,240a8,8,0,0,0,7.87-6.57l9-49.43h47.72l-8.47,46.57a8,8,0,0,0,6.44,9.3,7.79,7.79,0,0,0,1.43.13,8,8,0,0,0,7.87-6.57l9-49.43H208a8,8,0,0,0,0-16H161.77l11.09-64H224a8,8,0,0,0,0-16Zm-76.49,80H99.77l11.09-64h47.72Z"/></svg>
+          <span class="channel-name">files</span>
+        </div>
+        
+        <!-- Voice Channels category -->
+        <div class="channel-category" data-category="voice">
+          <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+          <span class="category-name">Voice Channels</span>
+          <div class="category-actions">
+            <svg viewBox="0 0 256 256" title="Create Channel"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+          </div>
+        </div>
+        
+        <div class="channel-item active" data-channel="main" data-type="voice">
+          <svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+          <span class="channel-name">Main</span>
+          <span class="voice-timer" id="voiceTimer"></span>
+        </div>
+        
+        <!-- Voice users in Main channel -->
+        <div class="voice-users" id="voiceUsersMain">
+          <!-- Users will be added dynamically -->
+        </div>
+        
+        <div class="channel-item" data-channel="studio" data-type="voice">
+          <svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+          <span class="channel-name">Studio</span>
+        </div>
+      </div>
+      
+      <!-- User panel -->
+      <div class="user-panel" id="userPanel">
+        <div class="user-panel-info">
+          <div class="user-avatar" id="userAvatar">
+            <span>Y</span>
+            <div class="status-dot"></div>
+          </div>
+          <div class="user-details">
+            <div class="user-name" id="userName">You</div>
+            <div class="user-status" id="userStatus">Online</div>
+          </div>
+        </div>
+        <div class="user-panel-buttons">
+          <button class="user-panel-btn" id="btnPanelMic" title="Mute">
+            <svg viewBox="0 0 256 256"><path d="M128,160a32,32,0,0,0,32-32V72a32,32,0,0,0-64,0v56A32,32,0,0,0,128,160Zm56-32a8,8,0,0,1,16,0,72,72,0,0,1-64,71.55V224a8,8,0,0,1-16,0V199.55A72,72,0,0,1,56,128a8,8,0,0,1,16,0,56,56,0,0,0,112,0Z"/></svg>
+          </button>
+          <button class="user-panel-btn" id="btnPanelDeafen" title="Deafen">
+            <svg viewBox="0 0 256 256"><path d="M201.89,54.66a104.08,104.08,0,0,0-147.32-.24l-.22.22A104.08,104.08,0,0,0,24,128v56a24,24,0,0,0,24,24H64a24,24,0,0,0,24-24V144a24,24,0,0,0-24-24H40.36A88.12,88.12,0,0,1,190.54,65.93l.24.21A87.58,87.58,0,0,1,215.64,120H192a24,24,0,0,0-24,24v40a24,24,0,0,0,24,24h16a24,24,0,0,0,24-24V128A104.06,104.06,0,0,0,201.89,54.66Z"/></svg>
+          </button>
+          <button class="user-panel-btn" id="btnPanelSettings" title="Settings">
+            <svg viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0 .2.823.966 1.36 1.79 1.36.336 0 .672-.09.971-.273 1.543-.94 3.31.827 2.37 2.37a1.75 1.75 0 0 0 1.066 2.572c1.756.426 1.756 2.924 0 3.35a1.75 1.75 0 0 0-1.066 2.572c.94 1.543-.827 3.31-2.37 2.37a1.75 1.75 0 0 0-2.572 1.066c-.426 1.756-2.924 1.756-3.35 0a1.75 1.75 0 0 0-2.572-1.066c-1.543.94-3.31-.827-2.37-2.37a1.75 1.75 0 0 0-1.066-2.572c-1.756-.426-1.756-2.924 0-3.35a1.75 1.75 0 0 0 1.066-2.572c-.94-1.543.827-3.31 2.37-2.37.3.183.635.273.971.273.824 0 1.59-.537 1.79-1.36Z"/><path d="M12 15.75A3.75 3.75 0 1 0 12 8.25a3.75 3.75 0 0 0 0 7.5Z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================
+         MAIN CONTENT AREA
+         ============================================ -->
+    <div class="main-content" id="mainContent">
+      <!-- Content header -->
+      <div class="content-header" id="contentHeader">
+        <svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+        <span class="content-header-title" id="contentTitle">Main</span>
+        <div class="content-header-actions">
+          <button class="header-action-btn" id="btnShowMembers" title="Show Members">
+            <svg viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/></svg>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Voice preview (shown when not in call) -->
+      <div class="voice-preview" id="voicePreview">
+        <div class="voice-preview-card">
+          <div class="preview-avatar">
+            <svg viewBox="0 0 256 256" width="32" height="32" fill="#5865f2"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+          </div>
+        </div>
+        <h2 id="voicePreviewTitle">Main</h2>
+        <p id="voicePreviewStatus">No one is in voice</p>
+        <button class="join-voice-btn" id="btnJoinVoice">Join Voice</button>
+      </div>
+      
+      <!-- Voice call view (shown when in call) -->
+      <div class="call-view" id="callView">
+        <!-- Stage for screen share -->
+        <div class="call-stage" id="callStage">
+          <video class="call-stage-video hidden" id="stageVideo" autoplay playsinline></video>
+          <div class="call-stage-placeholder" id="stagePlaceholder">
+            <svg viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Z"/></svg>
+            <span>No one is sharing their screen</span>
+          </div>
+          <div class="stage-label" id="stageLabel">
+            <svg viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Z"/></svg>
+            <span id="stageLabelName">Screen Share</span>
+          </div>
+        </div>
+        
+        <!-- Participant tiles -->
+        <div class="call-participants" id="callParticipants">
+          <!-- Tiles rendered dynamically -->
+        </div>
+        
+        <!-- Call controls -->
+        <div class="call-controls" id="callControls">
+          <!-- Mic -->
+          <div class="control-group" style="position: relative;">
+            <button class="control-btn" id="btnMic" title="Microphone">
+              <svg viewBox="0 0 256 256"><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,143.6V240a8,8,0,0,1-16,0V207.6A80.11,80.11,0,0,1,48,128a8,8,0,0,1,16,0,64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.11,80.11,0,0,1,136,207.6Z"/></svg>
+            </button>
+            <button class="control-dropdown" id="btnMicDropdown">
+              <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+            </button>
+            <div class="device-menu" id="micMenu">
+              <div class="device-menu-title">Input Device</div>
+              <div id="micDeviceList"></div>
+            </div>
+          </div>
+          
+          <!-- Camera -->
+          <div class="control-group" style="position: relative;">
+            <button class="control-btn muted" id="btnCamera" title="Camera">
+              <svg viewBox="0 0 256 256"><path d="M251.77,73a8,8,0,0,0-8.21.39L208,97.05V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V159l35.56,23.71A8,8,0,0,0,248,184a8,8,0,0,0,8-8V80A8,8,0,0,0,251.77,73ZM192,184H32V72H192V184Zm48-22.95-32-21.33V116.28L240,95Z"/></svg>
+            </button>
+            <button class="control-dropdown" id="btnCameraDropdown">
+              <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+            </button>
+            <div class="device-menu" id="cameraMenu">
+              <div class="device-menu-title">Camera</div>
+              <div id="cameraDeviceList"></div>
+            </div>
+          </div>
+          
+          <!-- Screen share -->
+          <button class="control-single" id="btnScreenShare" title="Share Screen">
+            <svg viewBox="0 0 256 256"><path d="M232,56V200a16,16,0,0,1-16,16H144a8,8,0,0,1,0-16h72V56H40V96a8,8,0,0,1-16,0V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM32,184a8,8,0,0,0,0,16,8,8,0,0,1,8,8,8,8,0,0,0,16,0A24,24,0,0,0,32,184Zm0-32a8,8,0,0,0,0,16,40,40,0,0,1,40,40,8,8,0,0,0,16,0A56.06,56.06,0,0,0,32,152Zm0-32a8,8,0,0,0,0,16,72.08,72.08,0,0,1,72,72,8,8,0,0,0,16,0A88.1,88.1,0,0,0,32,120Z"/></svg>
+          </button>
+          
+          <!-- Disconnect -->
+          <button class="control-disconnect" id="btnDisconnect" title="Disconnect">
+            <svg viewBox="0 0 256 256"><path d="M236.44,107.31l-25.17,25.17a8,8,0,0,1-11.31,0L174.83,107.4A32.12,32.12,0,0,0,152,96H104a32.12,32.12,0,0,0-22.83,11.4L56.05,132.48a8,8,0,0,1-11.31,0L19.57,107.31a8,8,0,0,1,0-11.32,128,128,0,0,1,181,0l35.88,35.88A8,8,0,0,1,236.44,107.31Z" transform="rotate(45, 128, 128)"/></svg>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Text chat view -->
+      <div class="chat-view" id="chatView">
+        <div class="chat-messages" id="chatMessages">
+          <!-- Messages rendered dynamically -->
+          <div class="chat-message">
+            <div class="chat-message-avatar">P</div>
+            <div class="chat-message-content">
+              <div class="chat-message-header">
+                <span class="chat-message-author">Producer Mike</span>
+                <span class="chat-message-time">Today at 3:30 PM</span>
+              </div>
+              <div class="chat-message-text">Hey team! I've uploaded the latest mix for review. Check the files channel.</div>
+            </div>
+          </div>
+          <div class="chat-message">
+            <div class="chat-message-avatar">J</div>
+            <div class="chat-message-content">
+              <div class="chat-message-header">
+                <span class="chat-message-author">John (Drums)</span>
+                <span class="chat-message-time">Today at 3:45 PM</span>
+              </div>
+              <div class="chat-message-text">Sounds great! The drums are punchy now 🔥</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="chat-input-container">
+          <div class="chat-input-wrapper">
+            <button class="chat-input-btn" id="btnAttachFile" title="Attach File">
+              <svg viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+            </button>
+            <input type="text" class="chat-input" id="chatInput" placeholder="Message #general">
+            <button class="chat-input-btn" id="btnEmoji" title="Emoji">
+              <svg viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216ZM80,108a12,12,0,1,1,12,12A12,12,0,0,1,80,108Zm96,0a12,12,0,1,1-12-12A12,12,0,0,1,176,108Zm-1.08,64a56,56,0,0,1-93.84,0,8,8,0,1,1,13.42-8.7,40,40,0,0,0,67,0,8,8,0,0,1,13.42,8.7Z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- ============================================
+           FRIENDS VIEW (Home → Friends)
+           ============================================ -->
+      <div class="friends-view" id="friendsView">
+        <!-- Friends header with tabs -->
+        <div class="friends-header">
+          <div class="friends-tabs">
+            <button class="friends-tab active" data-tab="online">Online</button>
+            <button class="friends-tab" data-tab="all">All</button>
+            <button class="friends-tab" data-tab="pending">Pending</button>
+          </div>
+          <button class="add-friend-btn" id="btnAddFriend">
+            <svg viewBox="0 0 256 256"><path d="M256,136a8,8,0,0,1-8,8H232v16a8,8,0,0,1-16,0V144H200a8,8,0,0,1,0-16h16V112a8,8,0,0,1,16,0v16h16A8,8,0,0,1,256,136Zm-57.87,58.85a8,8,0,0,1-12.26,10.3C165.75,181.19,138.09,168,108,168s-57.75,13.19-77.87,37.15a8,8,0,0,1-12.26-10.3c14.94-17.78,33.52-30.41,54.17-37.17a68,68,0,1,1,71.92,0C164.61,164.44,183.19,177.07,198.13,194.85ZM108,152a52,52,0,1,0-52-52A52.06,52.06,0,0,0,108,152Z"/></svg>
+            Add Friend
+          </button>
+        </div>
+        
+        <!-- Search bar -->
+        <div class="friends-search">
+          <input type="text" placeholder="Search collaborators..." id="searchFriends">
+        </div>
+        
+        <!-- Friends list -->
+        <div class="friends-list" id="friendsList">
+          <div class="friends-empty">
+            <svg viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/></svg>
+            <h3>No collaborators yet</h3>
+            <p>Add friends to start collaborating!</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- ============================================
+           DM VIEW (Direct Message Conversation)
+           ============================================ -->
+      <div class="dm-view" id="dmView">
+        <div class="dm-view-header">
+          <div class="dm-user-info">
+            <div class="dm-user-avatar" id="dmUserAvatar">
+              <span>?</span>
+            </div>
+            <div class="dm-user-details">
+              <span class="dm-user-name" id="dmUserName">User</span>
+              <span class="dm-user-status" id="dmUserStatus">Offline</span>
+            </div>
+          </div>
+          <div class="dm-actions">
+            <button class="dm-action-btn" title="Voice Call" id="btnDMCall">
+              <svg viewBox="0 0 256 256"><path d="M231.88,175.08A56.26,56.26,0,0,1,176,224C96.6,224,32,159.4,32,80A56.26,56.26,0,0,1,80.92,24.12a16,16,0,0,1,16.62,9.52l21.12,47.15,0,.12A16,16,0,0,1,117.39,96c-.18.27-.37.52-.57.77L96,121.45c7.49,15.22,23.41,31,38.83,38.51l24.34-20.71a8.12,8.12,0,0,1,.75-.56,16,16,0,0,1,15.17-1.4l.13.06,47.11,21.11A16,16,0,0,1,231.88,175.08Z"/></svg>
+            </button>
+            <button class="dm-action-btn" title="Video Call" id="btnDMVideo">
+              <svg viewBox="0 0 256 256"><path d="M251.77,73a8,8,0,0,0-8.21.39L208,97.05V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V159l35.56,23.71A8,8,0,0,0,248,184a8,8,0,0,0,8-8V80A8,8,0,0,0,251.77,73Z"/></svg>
+            </button>
+          </div>
+        </div>
+        
+        <div class="dm-messages" id="dmMessages">
+          <!-- Messages loaded dynamically -->
+        </div>
+        
+        <div class="dm-input-container">
+          <div class="dm-input-wrapper">
+            <button class="dm-input-btn" id="btnDMAttach" title="Attach File">
+              <svg viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+            </button>
+            <input type="text" class="dm-input" id="dmInput" placeholder="Message @User">
+            <button class="dm-input-btn dm-send-btn" id="btnDMSend" title="Send">
+              <svg viewBox="0 0 256 256"><path d="M231.87,114l-168-95.89A16,16,0,0,0,40.92,37.34L71.55,128,40.92,218.67A16,16,0,0,0,56,240a16.15,16.15,0,0,0,7.93-2.1l167.92-96.05a16,16,0,0,0,.05-27.89ZM56,224a.56.56,0,0,0,0-.12L85.74,136H144a8,8,0,0,0,0-16H85.74L56.06,32.16A.46.46,0,0,0,56,32l168,95.83Z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- ============================================
+           LIBRARY VIEW (Media & Files)
+           ============================================ -->
+      <div class="library-view" id="libraryView">
+        <!-- Library header -->
+        <div class="library-header">
+          <div class="library-tabs">
+            <button class="library-tab active" data-tab="all">All Files</button>
+            <button class="library-tab" data-tab="local">Local</button>
+            <button class="library-tab" data-tab="downloaded">Downloaded</button>
+            <button class="library-tab" data-tab="cache">App Cloud/Cache</button>
+            <button class="library-tab" data-tab="site">Site Library</button>
+          </div>
+          <div class="library-actions">
+            <button class="library-view-btn active" id="btnGridView" title="Grid View">
+              <svg viewBox="0 0 256 256"><path d="M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48Z"/></svg>
+            </button>
+            <button class="library-view-btn" id="btnListView" title="List View">
+              <svg viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"/></svg>
+            </button>
+            <button class="upload-btn" id="btnUploadFile">
+              <svg viewBox="0 0 256 256"><path d="M240,136v64a16,16,0,0,1-16,16H32a16,16,0,0,1-16-16V136a16,16,0,0,1,16-16H80a8,8,0,0,1,0,16H32v64H224V136H176a8,8,0,0,1,0-16h48A16,16,0,0,1,240,136ZM85.66,77.66,120,43.31V128a8,8,0,0,0,16,0V43.31l34.34,34.35a8,8,0,0,0,11.32-11.32l-48-48a8,8,0,0,0-11.32,0l-48,48A8,8,0,0,0,85.66,77.66ZM200,168a12,12,0,1,0-12,12A12,12,0,0,0,200,168Z"/></svg>
+              Upload
+            </button>
+          </div>
+        </div>
+        
+        <!-- Search/filter bar -->
+        <div class="library-search">
+          <div class="library-search-input">
+            <svg viewBox="0 0 256 256"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+            <input type="text" placeholder="Search files..." id="librarySearchInput">
+          </div>
+          <button class="library-refresh-btn" id="btnRefreshSiteLibrary" type="button">Refresh Site Library</button>
+          <div class="library-sort">
+            <select id="librarySortSelect">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="name">Name A-Z</option>
+              <option value="size">Size</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="library-status hidden" id="libraryStatus"></div>
+        
+        <!-- File grid/list container -->
+        <div class="library-content" id="libraryContent">
+          <!-- Empty state -->
+          <div class="library-empty" id="libraryEmpty">
+            <svg viewBox="0 0 256 256"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72Zm0,128H40V56H92.69l29.65,29.66A8,8,0,0,0,128,88h88Z"/></svg>
+            <h3>No files yet</h3>
+            <p>Upload any files to get started</p>
+            <button class="upload-btn-large" id="btnUploadEmpty">
+              <svg viewBox="0 0 256 256"><path d="M240,136v64a16,16,0,0,1-16,16H32a16,16,0,0,1-16-16V136a16,16,0,0,1,16-16H80a8,8,0,0,1,0,16H32v64H224V136H176a8,8,0,0,1,0-16h48A16,16,0,0,1,240,136ZM85.66,77.66,120,43.31V128a8,8,0,0,0,16,0V43.31l34.34,34.35a8,8,0,0,0,11.32-11.32l-48-48a8,8,0,0,0-11.32,0l-48,48A8,8,0,0,0,85.66,77.66Z"/></svg>
+              Upload Files
+            </button>
+          </div>
+          
+          <!-- File grid (populated dynamically) -->
+          <div class="library-grid hidden" id="libraryGrid">
+            <!-- Files loaded here -->
+          </div>
+          
+          <!-- File list (populated dynamically) -->
+          <div class="library-list hidden" id="libraryList">
+            <!-- Files loaded here -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="update-status-widget hidden" id="updateStatusWidget">
+    <div class="update-status-title" id="updateStatusTitle">Updater</div>
+    <div class="update-status-text" id="updateStatusText">Idle</div>
+    <div class="update-status-progress hidden" id="updateStatusProgress">0%</div>
+    <div class="update-status-actions">
+      <button class="update-action-btn" id="btnCheckUpdatesNow" type="button">Check Now</button>
+      <button class="update-action-btn hidden" id="btnUpdateLater" type="button">Remind Later</button>
+      <button class="update-action-btn primary hidden" id="btnInstallUpdate" type="button">Install & Restart</button>
+    </div>
+  </div>
+  
+  <!-- ============================================
+       UPLOAD FILE MODAL
+       ============================================ -->
+  <div class="modal-overlay" id="uploadModal">
+    <div class="modal modal-upload">
+      <div class="modal-header">
+        <h2>Upload Files</h2>
+        <p>Add files to your library</p>
+      </div>
+      <div class="modal-body">
+        <!-- Drop zone -->
+        <div class="upload-dropzone" id="uploadDropzone">
+          <svg viewBox="0 0 256 256"><path d="M240,136v64a16,16,0,0,1-16,16H32a16,16,0,0,1-16-16V136a16,16,0,0,1,16-16H80a8,8,0,0,1,0,16H32v64H224V136H176a8,8,0,0,1,0-16h48A16,16,0,0,1,240,136ZM85.66,77.66,120,43.31V128a8,8,0,0,0,16,0V43.31l34.34,34.35a8,8,0,0,0,11.32-11.32l-48-48a8,8,0,0,0-11.32,0l-48,48A8,8,0,0,0,85.66,77.66Z"/></svg>
+          <p>Drag and drop files here</p>
+          <span>or</span>
+          <button class="browse-btn" id="btnBrowseFiles">Browse Files</button>
+          <input type="file" id="fileInput" multiple hidden>
+        </div>
+        
+        <!-- Selected files list -->
+        <div class="upload-files-list hidden" id="uploadFilesList">
+          <div class="form-label">Selected Files</div>
+          <div class="selected-files" id="selectedFilesList">
+            <!-- Files listed here -->
+          </div>
+        </div>
+        
+        <!-- Upload destination -->
+        <div class="upload-options">
+          <div class="form-label">Upload Destination</div>
+          <label class="radio-option">
+            <input type="radio" name="uploadDestination" value="local" checked>
+            <span class="checkbox-label">Upload Local</span>
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="uploadDestination" value="cloud">
+            <span class="checkbox-label">Upload Cloud</span>
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="uploadDestination" value="site">
+            <span class="checkbox-label">Upload to Site</span>
+          </label>
+
+          <div class="site-upload-meta hidden" id="siteUploadMeta">
+            <div class="form-group">
+              <label class="form-label">Post Name</label>
+              <input type="text" class="form-input" id="siteMetaName" placeholder="Track/Pack name">
+            </div>
+            <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+              <div class="form-group">
+                <label class="form-label">Genre</label>
+                <input type="text" class="form-input" id="siteMetaGenre" placeholder="Hip-Hop">
+              </div>
+              <div class="form-group">
+                <label class="form-label">BPM</label>
+                <input type="number" class="form-input" id="siteMetaBpm" placeholder="140">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Key</label>
+                <input type="text" class="form-input" id="siteMetaKey" placeholder="F#m">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnCancelUpload">Cancel</button>
+        <button class="btn btn-primary" id="btnConfirmUpload" disabled>Upload</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ============================================
+       FILE PREVIEW MODAL
+       ============================================ -->
+  <div class="modal-overlay" id="filePreviewModal">
+    <div class="modal modal-preview">
+      <div class="modal-header">
+        <div class="preview-file-info">
+          <h2 id="previewFileName">File Name</h2>
+          <p id="previewFileMeta">Audio · 4.2 MB · Uploaded Jan 15, 2026</p>
+        </div>
+        <button class="modal-close" id="btnClosePreview">
+          <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body preview-body">
+        <!-- Audio player -->
+        <div class="preview-audio hidden" id="previewAudio">
+          <div class="audio-waveform" id="audioWaveform"></div>
+          <audio id="audioPlayer" controls></audio>
+        </div>
+        
+        <!-- Video player -->
+        <div class="preview-video hidden" id="previewVideo">
+          <video id="videoPlayer" controls></video>
+        </div>
+
+        <!-- Image preview -->
+        <div class="preview-image hidden" id="previewImage">
+          <img id="imagePreview" alt="Preview">
+        </div>
+        
+        <!-- Generic file preview -->
+        <div class="preview-generic hidden" id="previewGeneric">
+          <svg viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Z"/></svg>
+          <p>Preview not available for this file type</p>
+          <div class="preview-zip-list hidden" id="previewZipListWrap">
+            <div class="preview-zip-title" id="previewZipTitle">ZIP Contents</div>
+            <div class="preview-zip-meta" id="previewZipMeta"></div>
+            <div class="preview-zip-items" id="previewZipItems"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer preview-footer">
+        <button class="btn btn-secondary hidden" id="btnPlayInBottom">Play in Bottom Player</button>
+        <button class="btn btn-secondary hidden" id="btnPushToSite">Push to Site Library</button>
+        <button class="btn btn-secondary hidden" id="btnCopyToLocal">Copy to Local</button>
+        <button class="btn btn-secondary hidden" id="btnCopyToAppCloud">Copy to App Cloud</button>
+        <button class="btn btn-secondary" id="btnDeleteFile">
+          <svg viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>
+          Delete
+        </button>
+        <button class="btn btn-primary" id="btnDownloadFile">
+          <svg viewBox="0 0 256 256"><path d="M224,152v56a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V152a8,8,0,0,1,16,0v56H208V152a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,132.69V40a8,8,0,0,0-16,0v92.69L93.66,106.34a8,8,0,0,0-11.32,11.32Z"/></svg>
+          Download
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ============================================
+       ADD FRIEND MODAL
+       ============================================ -->
+  <div class="modal-overlay" id="addFriendModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Add a Collaborator</h2>
+        <p>You can add collaborators by their username or email</p>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Username or Email</label>
+          <input type="text" class="form-input" id="friendSearchInput" placeholder="Enter username or email...">
+        </div>
+        <div class="search-results" id="friendSearchResults">
+          <!-- Search results appear here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnCancelAddFriend">Cancel</button>
+        <button class="btn btn-primary" id="btnSendFriendRequest" disabled>Send Request</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ============================================
+       CREATE SESSION MODAL
+       ============================================ -->
+  <div class="modal-overlay" id="createSessionModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Create a Session</h2>
+        <p>Start a new collaboration session with your team</p>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Session Name</label>
+          <input type="text" class="form-input" id="newSessionName" placeholder="e.g. Album Recording 2026">
+        </div>
+        <div class="form-group" style="margin-top: 16px;">
+          <label class="form-label">Join With Invite Code</label>
+          <input type="text" class="form-input" id="joinSessionCode" placeholder="Enter invite code">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnCancelSession">Cancel</button>
+        <button class="btn btn-secondary" id="btnJoinSession">Join Session</button>
+        <button class="btn btn-primary" id="btnCreateSession">Create Session</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="global-player hidden" id="globalPlayer">
+    <div class="global-player-track">
+      <div class="global-player-title" id="globalPlayerTitle">No track selected</div>
+      <div class="global-player-meta" id="globalPlayerMeta">Select a sample or song to play</div>
+    </div>
+    <div class="global-player-controls">
+      <button class="global-player-btn" id="globalPlayerPrev" title="Previous">
+        <svg viewBox="0 0 256 256"><path d="M200,56V200a8,8,0,0,1-12.12,6.86L80,139.43V200a8,8,0,0,1-16,0V56a8,8,0,0,1,16,0v60.57L187.88,49.14A8,8,0,0,1,200,56Z"/></svg>
+      </button>
+      <button class="global-player-btn global-player-btn--primary" id="globalPlayerToggle" title="Play/Pause">
+        <svg viewBox="0 0 256 256"><path d="M88,64V192a8,8,0,0,0,12.14,6.86l96-64a8,8,0,0,0,0-13.72l-96-64A8,8,0,0,0,88,64Z"/></svg>
+      </button>
+      <button class="global-player-btn" id="globalPlayerNext" title="Next">
+        <svg viewBox="0 0 256 256"><path d="M56,56a8,8,0,0,1,12.12-6.86L176,116.57V56a8,8,0,0,1,16,0V200a8,8,0,0,1-16,0V139.43L68.12,206.86A8,8,0,0,1,56,200Z"/></svg>
+      </button>
+    </div>
+    <button class="global-player-close" id="globalPlayerClose" title="Close Player">
+      <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+    </button>
+    <audio id="globalPlayerAudio" preload="metadata"></audio>
+  </div>
+  
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
+    import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
+    import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, onSnapshot, addDoc } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+    import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
+
+    // Firebase configuration (same as login.html)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBpMgWjeIVXYtoBn4TOlsXYPXM0FMOKE1Y",
+      authDomain: "coverse-390b0.firebaseapp.com",
+      projectId: "coverse-390b0",
+      storageBucket: "coverse-390b0.firebasestorage.app",
+      messagingSenderId: "129365928431",
+      appId: "1:129365928431:web:e1dfee8a49db78e4026e1a",
+      measurementId: "G-FR3HWCE77R"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    // Expose to global for app.js
+    window.firebaseAuth = auth;
+    window.firebaseDb = db;
+    window.firebaseStorage = storage;
+    window.firebaseSignOut = signOut;
+    window.firebaseDoc = doc;
+    window.firebaseGetDoc = getDoc;
+    window.firebaseSetDoc = setDoc;
+    window.firebaseAddDoc = addDoc;
+    window.firebaseCollection = collection;
+    window.firebaseQuery = query;
+    window.firebaseWhere = where;
+    window.firebaseGetDocs = getDocs;
+    window.firebaseOnSnapshot = onSnapshot;
+    window.firebaseStorageRef = storageRef;
+    window.firebaseUploadBytes = uploadBytes;
+    window.firebaseGetDownloadURL = getDownloadURL;
+    window.firebaseDeleteObject = deleteObject;
+
+    // Check auth state
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        // Not logged in, redirect to login
+        window.location.href = 'login.html';
+        return;
+      }
+
+      // User is logged in - load their profile
+      console.log('[Coverse] User authenticated:', user.uid);
+      
+      // Get user profile from Firestore
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        
+        let profile = {
+          uid: user.uid,
+          displayName: user.displayName || user.email?.split('@')[0] || 'User',
+          email: user.email || '',
+          avatarUrl: user.photoURL || null
+        };
+
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          profile = { ...profile, ...data };
+        }
+
+        if (profile.avatarUrl === '/photos/wave.png') {
+          profile.avatarUrl = 'https://coversehq.com/photos/wave.png';
+        }
+
+        // Update UI with user info
+        window.currentUser = profile;
+        window.dispatchEvent(new CustomEvent('coverse-user-ready', { detail: profile }));
+        
+      } catch (error) {
+        console.error('[Coverse] Error loading user profile:', error);
+        window.currentUser = {
+          uid: user.uid,
+          displayName: user.displayName || 'User',
+          email: user.email || '',
+          avatarUrl: null
+        };
+        window.dispatchEvent(new CustomEvent('coverse-user-ready', { detail: window.currentUser }));
+      }
+    });
+  </script>
+  
+  <script src="../src/app.js"></script>
+</body>
+</html>
