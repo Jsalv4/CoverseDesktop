@@ -1,0 +1,44 @@
+name: Release Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $pkgVersion = (Get-Content package.json | ConvertFrom-Json).version
+          if ($tag -ne "v$pkgVersion") {
+            throw "Tag '$tag' does not match package version 'v$pkgVersion'."
+          }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build and publish release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run release:win -- --config.win.signAndEditExecutable=false

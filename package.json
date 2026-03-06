@@ -1,6 +1,6 @@
 {
   "name": "coverse",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Coverse - Music Collaboration App",
   "main": "main.js",
   "scripts": {
