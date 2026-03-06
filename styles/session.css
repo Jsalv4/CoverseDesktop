@@ -4,19 +4,19 @@
    ============================================ */
 
 :root {
-  --dc-bg: #1e1f22;
-  --dc-bg-secondary: #2b2d31;
-  --dc-bg-tertiary: #232428;
-  --dc-surface: #313338;
-  --dc-accent: #5865f2;
-  --dc-green: #23a55a;
-  --dc-red: #ed4245;
-  --dc-yellow: #f0b232;
-  --dc-muted: #949ba4;
-  --dc-text: #dbdee1;
+  --dc-bg: #0f172a;
+  --dc-bg-secondary: #1e293b;
+  --dc-bg-tertiary: #334155;
+  --dc-surface: #1e293b;
+  --dc-accent: #34d399;
+  --dc-green: #34d399;
+  --dc-red: #f87171;
+  --dc-yellow: #facc15;
+  --dc-muted: #cbd5e1;
+  --dc-text: #ffffff;
   --dc-white: #ffffff;
-  --dc-tile-selected: #5865f2;
-  --dc-tile-hover: rgba(255,255,255,0.1);
+  --dc-tile-selected: #34d399;
+  --dc-tile-hover: rgba(203, 213, 225, 0.18);
 }
 
 /* ============================================
@@ -27,7 +27,7 @@
   inset: 0;
   display: none;
   flex-direction: column;
-  background: #000;
+  background: var(--dc-bg);
   z-index: 1000;
 }
 
@@ -43,7 +43,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(15, 23, 42, 0.72);
   position: absolute;
   top: 0;
   left: 0;
@@ -173,7 +173,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
+  background: var(--dc-bg);
   overflow: hidden;
 }
 
@@ -221,7 +221,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 23, 42, 0.78);
   border-radius: 4px;
   color: var(--dc-white);
   font-size: 14px;
@@ -249,7 +249,7 @@
   width: 32px;
   height: 32px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 23, 42, 0.78);
   border: none;
   cursor: pointer;
   display: flex;
@@ -264,7 +264,7 @@
 }
 
 .stage-focus-btn:hover {
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(15, 23, 42, 0.92);
 }
 
 .stage-focus-btn svg {
@@ -616,7 +616,7 @@
   height: 36px;
   border-radius: 4px;
   border: none;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(15, 23, 42, 0.72);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -630,7 +630,7 @@
 }
 
 .bottom-right-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(15, 23, 42, 0.88);
 }
 
 .bottom-right-btn svg {

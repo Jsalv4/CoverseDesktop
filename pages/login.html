@@ -225,6 +225,14 @@
             messageBox.classList.toggle('border-red-500/50', isError);
         }
 
+        function isNetworkAvailable() {
+            return typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+        }
+
+        function showOfflineMessage() {
+            showMessage('No internet connection. Reconnect to Wi-Fi/Ethernet and try again.', true);
+        }
+
         const loginForm = document.getElementById('loginForm');
         const displayNameGroup = document.getElementById('displayNameGroup');
         const confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
@@ -279,6 +287,11 @@
                     return;
                 }
 
+                if (!isNetworkAvailable()) {
+                    showOfflineMessage();
+                    return;
+                }
+
                 const persistence = rememberMe?.checked ? browserLocalPersistence : browserSessionPersistence;
                 await setPersistence(auth, persistence);
 
@@ -299,7 +312,11 @@
                     }
                 } catch (error) {
                     console.error('Auth error:', error);
-                    showMessage(error.message || 'Authentication failed.', true);
+                    if (error?.code === 'auth/network-request-failed') {
+                        showOfflineMessage();
+                    } else {
+                        showMessage(error.message || 'Authentication failed.', true);
+                    }
                 }
             });
         }
@@ -415,6 +432,13 @@
             console.log('[login] signInWithGoogle called, isElectron:', isElectron, 'isVST:', isVST);
             if (btnText) btnText.textContent = 'Opening...';
             if (btn) btn.disabled = true;
+
+            if (!isNetworkAvailable()) {
+                if (btnText) btnText.textContent = 'Continue with Google';
+                if (btn) btn.disabled = false;
+                showOfflineMessage();
+                return;
+            }
             
             try {
                 if (isElectron && !isExternalBrowserMode) {
@@ -448,6 +472,8 @@
                     showMessage('Popup was blocked. Please allow popups and try again.', true);
                 } else if (error.code === 'auth/unauthorized-domain') {
                     showMessage('This domain is not authorized. Add 127.0.0.1 to Firebase authorized domains.', true);
+                } else if (error.code === 'auth/network-request-failed') {
+                    showOfflineMessage();
                 } else {
                     showMessage('Login failed: ' + (error.message || 'Unknown error'), true);
                 }
@@ -457,6 +483,10 @@
         // Attach click handler
         document.getElementById('googleSignIn')?.addEventListener('click', signInWithGoogle);
         window.addEventListener('beforeunload', stopExternalAuthPolling);
+        window.addEventListener('offline', showOfflineMessage);
+        window.addEventListener('online', () => {
+            showMessage('Connection restored. You can log in now.');
+        });
     </script>
 </body>
 </html>

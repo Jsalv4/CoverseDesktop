@@ -20,6 +20,8 @@ const config = require('./config');
 const NativeHelper = require('./src/native-helper');
 const { createUpdateManager } = require('./src/update-manager');
 
+const API_BASE = 'https://coversehq.com';
+
 let mainWindow;
 let tray;
 let wsServer;
@@ -31,6 +33,35 @@ let siteViewVisible = false;
 const MAX_RELOADS = 3;
 let reloadAttempts = 0;
 let updateManager = null;
+
+const MEDIA_ALLOWED_PERMISSIONS = new Set([
+  'media',
+  'camera',
+  'microphone',
+  'display-capture',
+  'speaker-selection',
+  'mediaKeySystem',
+  'geolocation',
+  'notifications',
+  'fullscreen',
+  'pointerLock'
+]);
+
+function isAllowedPermission(permission) {
+  return MEDIA_ALLOWED_PERMISSIONS.has(String(permission || ''));
+}
+
+function applyPermissionHandlers(targetSession) {
+  if (!targetSession) return;
+
+  targetSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(isAllowedPermission(permission));
+  });
+
+  targetSession.setPermissionCheckHandler((_webContents, permission) => {
+    return isAllowedPermission(permission);
+  });
+}
 
 function sendUpdateStatus(payload = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -81,14 +112,15 @@ if (process.env.ELECTRON_USER_DATA_DIR) {
   app.setPath('userData', process.env.ELECTRON_USER_DATA_DIR);
 }
 
-// Disable hardware acceleration to prevent BrowserView crashes
-// CoverseHQ's WebGL/canvas usage conflicts with some GPU drivers in Electron's multi-process model
-app.disableHardwareAcceleration();
-
-// Add Chromium flags to improve stability
+// Add Chromium stability flag while keeping GPU enabled for smoother media/call performance.
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
+
+if (process.env.COVERSE_DISABLE_GPU === '1') {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-software-rasterizer');
+  console.warn('[main] GPU acceleration disabled via COVERSE_DISABLE_GPU=1');
+}
 
 // Allow multiple app instances (handy for local loopback tests); no single-instance lock
 
@@ -139,6 +171,37 @@ function createWindow() {
   } else {
     loadRemote();
   }
+
+  const restoreMainUiAfterCheckout = () => {
+    const currentUrl = String(mainWindow?.webContents?.getURL?.() || '');
+    if (!currentUrl) return;
+    if (!currentUrl.includes('stripe.com')) return;
+
+    if (localServer) {
+      const appUrl = localServer.getUrl('pages/app.html');
+      mainWindow.loadURL(appUrl).catch(() => {});
+      return;
+    }
+
+    mainWindow.loadFile(path.join(__dirname, 'pages', 'app.html')).catch(() => {});
+  };
+
+  const interceptProtocolNavigation = (event, targetUrl) => {
+    const url = String(targetUrl || '');
+    if (!url.startsWith('coverse://')) return false;
+
+    event.preventDefault();
+    handleProtocolUrl(url);
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      restoreMainUiAfterCheckout();
+    }
+
+    return true;
+  };
 
   // Show when ready
   mainWindow.once('ready-to-show', () => {
@@ -193,6 +256,12 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('did-finish-load', resetReloads);
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    interceptProtocolNavigation(event, url);
+  });
+  mainWindow.webContents.on('will-redirect', (event, url) => {
+    interceptProtocolNavigation(event, url);
+  });
 
   // Handle window close - minimize to tray instead
   mainWindow.on('close', (event) => {
@@ -203,21 +272,18 @@ function createWindow() {
   });
 
   // Enable WebRTC screen capture
-  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = ['media', 'mediaKeySystem', 'geolocation', 'notifications', 'fullscreen', 'pointerLock'];
-    if (allowedPermissions.includes(permission)) {
-      callback(true);
-    } else {
-      callback(false);
-    }
-  });
+  applyPermissionHandlers(mainWindow.webContents.session);
 
   // Handle display media (screen share) request
   mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
       if (sources.length > 0) {
         callback({ video: sources[0], audio: 'loopback' });
+        return;
       }
+      callback({ video: null, audio: null });
+    }).catch(() => {
+      callback({ video: null, audio: null });
     });
   });
 
@@ -265,6 +331,18 @@ function createWindow() {
     
     childWindow.webContents.on('will-navigate', (event, url) => {
       console.log('[main] OAuth popup will-navigate:', url);
+      const handled = interceptProtocolNavigation(event, url);
+      if (handled && !childWindow.isDestroyed()) {
+        childWindow.close();
+      }
+    });
+
+    childWindow.webContents.on('will-redirect', (event, url) => {
+      console.log('[main] OAuth popup will-redirect:', url);
+      const handled = interceptProtocolNavigation(event, url);
+      if (handled && !childWindow.isDestroyed()) {
+        childWindow.close();
+      }
     });
     
     childWindow.webContents.on('did-navigate', (event, url) => {
@@ -675,15 +753,183 @@ ipcMain.on('vst-message', (event, message) => {
   }
 });
 
+ipcMain.handle('stripe:getPublishableKey', async () => {
+  const res = await fetch(`${API_BASE}/api/stripe-config`);
+  if (!res.ok) throw new Error('Failed to load stripe config');
+  const data = await res.json();
+  if (!data?.publishableKey) throw new Error('Missing publishableKey');
+  return data.publishableKey;
+});
+
+ipcMain.handle('stripe:createCheckoutSession', async (_event, payload = {}) => {
+  const requestHeaders = {
+    'Content-Type': 'application/json'
+  };
+
+  if (payload?.authToken) {
+    requestHeaders.Authorization = `Bearer ${payload.authToken}`;
+  }
+
+  const res = await fetch(`${API_BASE}/api/create-checkout-session`, {
+    method: 'POST',
+    headers: requestHeaders,
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(`create-checkout-session failed (${res.status})`);
+  return res.json();
+});
+
+ipcMain.handle('stripe:confirmPayment', async (_event, payload = {}) => {
+  const requestHeaders = {
+    'Content-Type': 'application/json'
+  };
+
+  if (payload?.authToken) {
+    requestHeaders.Authorization = `Bearer ${payload.authToken}`;
+  }
+
+  const sessionId = payload?.sessionId || '';
+  const res = await fetch(`${API_BASE}/api/confirm-payment`, {
+    method: 'POST',
+    headers: requestHeaders,
+    body: JSON.stringify({ sessionId })
+  });
+  if (!res.ok) throw new Error(`confirm-payment failed (${res.status})`);
+  return res.json();
+});
+
+// ============================================
+// PROTOCOL HANDLING FOR STRIPE REDIRECTS
+// ============================================
+
+// Register custom protocol for deep linking (coverse://)
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('coverse', process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('coverse');
+}
+
+const startupProtocolUrl = process.argv.find((arg) => String(arg || '').startsWith('coverse://')) || '';
+const allowMultiInstance = process.env.COVERSE_ALLOW_MULTI_INSTANCE === '1';
+
+if (allowMultiInstance) {
+  console.warn('[main] Single-instance lock disabled via COVERSE_ALLOW_MULTI_INSTANCE=1');
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    handleProtocolUrl(url);
+  });
+} else {
+  // Single instance lock to handle protocol URLs
+  const gotTheLock = app.requestSingleInstanceLock();
+
+  if (!gotTheLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', (event, commandLine) => {
+      // Handle protocol URLs on Windows
+      const url = commandLine.find(arg => arg.startsWith('coverse://'));
+      if (url) {
+        handleProtocolUrl(url);
+      }
+
+      // Focus the main window
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+    });
+
+    // Handle protocol URLs on macOS
+    app.on('open-url', (event, url) => {
+      event.preventDefault();
+      handleProtocolUrl(url);
+    });
+  }
+}
+
+function handleProtocolUrl(url) {
+  console.log('[Protocol] Received URL:', url);
+  
+  if (!url || !url.startsWith('coverse://')) return;
+
+  try {
+    const urlObj = new URL(url);
+    const route = `${urlObj.hostname}${urlObj.pathname}`.replace(/^\/+|\/+$/g, '');
+    const params = Object.fromEntries(urlObj.searchParams);
+    const sessionId = params.session_id || '';
+
+    if (route === 'checkout' && sessionId) {
+      console.log('[Protocol] Checkout return:', sessionId);
+      
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('checkout-success', { sessionId });
+        
+        // Show notification
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Payment Successful',
+          message: 'Your purchase was completed successfully!',
+          buttons: ['OK']
+        });
+      }
+      return;
+    }
+
+    // Handle Stripe checkout success
+    if (route === 'checkout-success') {
+      console.log('[Protocol] Checkout success:', sessionId);
+      
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('checkout-success', { sessionId });
+        
+        // Show notification
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Payment Successful',
+          message: 'Your purchase was completed successfully!',
+          buttons: ['OK']
+        });
+      }
+      return;
+    }
+
+    // Handle Stripe checkout cancel
+    if (route === 'checkout-cancel') {
+      console.log('[Protocol] Checkout cancelled');
+      
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('checkout-cancel');
+        
+        dialog.showMessageBox(mainWindow, {
+          type: 'warning',
+          title: 'Payment Cancelled',
+          message: 'Your payment was cancelled. You can try again anytime.',
+          buttons: ['OK']
+        });
+      }
+    }
+  } catch (error) {
+    console.error('[Protocol] Failed to parse URL:', error);
+  }
+}
+
 app.whenReady().then(() => {
   // Configure the persist:coverse session for webview/siteWindow
   const coverseSession = session.fromPartition('persist:coverse');
   
   // Set permissions for the webview session
-  coverseSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = ['media', 'mediaKeySystem', 'geolocation', 'notifications', 'fullscreen', 'pointerLock'];
-    callback(allowedPermissions.includes(permission));
-  });
+  applyPermissionHandlers(coverseSession);
   
   // Strip frame-blocking headers for coversehq.com in webview session
   const filter = { urls: ['https://coversehq.com/*', 'https://*.coversehq.com/*'] };
@@ -703,6 +949,9 @@ app.whenReady().then(() => {
   });
   
   createWindow();
+  if (startupProtocolUrl) {
+    setTimeout(() => handleProtocolUrl(startupProtocolUrl), 300);
+  }
   updateManager = createUpdateManager({
     app,
     autoUpdater,

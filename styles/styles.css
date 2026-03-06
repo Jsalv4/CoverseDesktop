@@ -5,37 +5,37 @@
 
 /* === CSS Variables === */
 :root {
-  /* Colors - Dark Theme */
-  --bg-primary: #0f0f0f;
-  --bg-secondary: #1a1a1a;
-  --bg-tertiary: #242424;
-  --bg-elevated: #2a2a2a;
-  --bg-hover: #333333;
+  /* Colors - Coverse Site Palette */
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --bg-elevated: #1e293b;
+  --bg-hover: #475569;
   
   /* Accent Colors */
-  --accent-primary: #0ea5e9;
-  --accent-secondary: #22d3ee;
-  --accent-success: #22c55e;
-  --accent-warning: #f59e0b;
-  --accent-danger: #ef4444;
-  --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%);
+  --accent-primary: #34d399;
+  --accent-secondary: #10b981;
+  --accent-success: #34d399;
+  --accent-warning: #facc15;
+  --accent-danger: #f87171;
+  --accent-gradient: linear-gradient(135deg, #34d399 0%, #10b981 100%);
   
   /* Text Colors */
   --text-primary: #ffffff;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --text-inverse: #0f0f0f;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-inverse: #0f172a;
   
   /* Border Colors */
-  --border-default: #2a2a2a;
-  --border-hover: #3f3f46;
-  --border-focus: #0ea5e9;
+  --border-default: #334155;
+  --border-hover: #475569;
+  --border-focus: #34d399;
   
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(14, 165, 233, 0.3);
+  --shadow-glow: 0 0 20px rgba(34, 211, 238, 0.3);
   
   /* Spacing */
   --radius-sm: 6px;

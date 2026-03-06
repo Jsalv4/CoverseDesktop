@@ -4,14 +4,18 @@
   "description": "Coverse - Music Collaboration App",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node start-electron-dev-safe.js",
+    "start:client": "node scripts/start-client.js",
+    "start:raw": "electron .",
     "dev:web": "http-server -p 8080 .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "release:win": "electron-builder --win --publish always",
+    "clean:tmp": "node scripts/clean-temp-data.js",
     "verify:update": "node scripts/verify-update.js",
-    "test:update": "node --test tests/update-manager.test.js tests/update-ipc-shape.test.js",
+    "test:update": "node --test tests/update-manager.test.js tests/update-ipc-shape.test.js tests/home-feed-utils.test.js",
     "test": "npm run test:update",
+    "check:stability": "node --check main.js && node --check preload.js && node --check src/renderer.js && npm run test:update",
     "signal:dev": "node signaling-server.js",
     "firebase:rules": "firebase deploy --only firestore:rules,storage",
     "firebase:rules:firestore": "firebase deploy --only firestore:rules",
@@ -32,6 +36,35 @@
   "build": {
     "appId": "com.coverse.app",
     "productName": "Coverse",
+    "protocols": [
+      {
+        "name": "Coverse Protocol",
+        "schemes": [
+          "coverse"
+        ]
+      }
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "config.js",
+      "index.html",
+      "pages/**/*",
+      "src/**/*",
+      "styles/**/*",
+      "assets/**/*",
+      "package.json",
+      "!**/*.log",
+      "!.tmp-electron-userdata*/**",
+      "!.tmp-electron-userdata/**",
+      "!.userA/**",
+      "!.userB/**",
+      "!.userB2/**",
+      "!dist/**",
+      "!tests/**",
+      "!scripts/**",
+      "!*.md"
+    ],
     "directories": {
       "output": "dist"
     },

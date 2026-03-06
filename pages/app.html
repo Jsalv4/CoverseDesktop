@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: mediastream: https:; connect-src 'self' ws: wss: https://coversehq.com https://*.coversehq.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://firestore.googleapis.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://unpkg.com https://js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: https://q.stripe.com https://m.stripe.network; media-src 'self' blob: mediastream: https:; connect-src 'self' ws: wss: https://coversehq.com https://*.coversehq.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://firestore.googleapis.com https://api.stripe.com https://q.stripe.com https://m.stripe.network; frame-src 'self' https://js.stripe.com https://hooks.stripe.com; child-src 'self' https://js.stripe.com https://hooks.stripe.com;">
   <title>Coverse</title>
   <link rel="stylesheet" href="../styles/app.css">
 </head>
@@ -38,7 +38,7 @@
       <div class="session-header" id="sessionHeader">
         <h2 id="currentSessionName">Coverse</h2>
         <div class="session-header-actions">
-          <button class="session-invite-btn hidden" id="btnCopySessionInvite" title="Copy Session Invite Code">Invite</button>
+          <button class="session-invite-btn hidden" id="btnCopySessionInvite" title="Open Session Invite">Invite</button>
           <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
         </div>
       </div>
@@ -52,13 +52,29 @@
         
         <!-- Navigation -->
         <div class="home-nav">
+          <div class="home-nav-item" id="navFeed" data-view="feed">
+            <svg viewBox="0 0 256 256"><path d="M224,120v96a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V120a16,16,0,0,1,5.17-11.78l80-75.48a16,16,0,0,1,21.66,0l80,75.48A16,16,0,0,1,224,120Zm-16,0L128,44.52,48,120v96H96V160a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v56h48Z"/></svg>
+            <span>Feed</span>
+          </div>
           <div class="home-nav-item active" id="navFriends" data-view="friends">
             <svg viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/></svg>
             <span>Friends</span>
           </div>
+          <div class="home-nav-item" id="navProfile" data-view="profile">
+            <svg viewBox="0 0 256 256"><path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"/></svg>
+            <span>Profile</span>
+          </div>
           <div class="home-nav-item" id="navLibrary" data-view="library">
             <svg viewBox="0 0 256 256"><path d="M83.19,174.4a8,8,0,0,0,11.21-1.6,52,52,0,0,1,67.2,0,8,8,0,1,0,9.6-12.8,68,68,0,0,0-86.4,0A8,8,0,0,0,83.19,174.4ZM128,72a88,88,0,0,0-88,88,8,8,0,0,0,16,0,72,72,0,0,1,144,0,8,8,0,0,0,16,0A88,88,0,0,0,128,72Zm0,32a56,56,0,0,0-56,56,8,8,0,0,0,16,0,40,40,0,0,1,80,0,8,8,0,0,0,16,0A56,56,0,0,0,128,104Z"/></svg>
             <span>Library</span>
+          </div>
+          <div class="home-nav-item" id="navDiscover" data-view="discover">
+            <svg viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm53.66-98.34-40,40a8,8,0,0,1-11.32,0l-40-40a8,8,0,0,1,11.32-11.32L128,132.69l26.34-26.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+            <span>Discover</span>
+          </div>
+          <div class="home-nav-item" id="navMarketplace" data-view="marketplace">
+            <svg viewBox="0 0 256 256"><path d="M223.68,66.15,208,32.41a16,16,0,0,0-13.12-8.41H61.12A16,16,0,0,0,48,32.41L32.32,66.15A16.13,16.13,0,0,0,32,72v32a40,40,0,0,0,8,24v64a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V128a40,40,0,0,0,8-24V72A16.13,16.13,0,0,0,223.68,66.15ZM61.12,40H194.88l11.08,20H52.64ZM88,160H72a8,8,0,0,1,0-16H88a8,8,0,0,1,0,16Zm96,0H168a8,8,0,0,1,0-16h16a8,8,0,0,1,0,16Z"/></svg>
+            <span>Marketplace</span>
           </div>
         </div>
         
@@ -165,6 +181,10 @@
         <svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
         <span class="content-header-title" id="contentTitle">Main</span>
         <div class="content-header-actions">
+          <button class="header-action-btn cart-btn" id="btnCart" title="Cart">
+            <svg viewBox="0 0 256 256"><path d="M223.68,66.15,208,32.41a16,16,0,0,0-13.12-8.41H61.12A16,16,0,0,0,48,32.41L32.32,66.15A16.13,16.13,0,0,0,32,72v32a40,40,0,0,0,8,24v64a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V128a40,40,0,0,0,8-24V72A16.13,16.13,0,0,0,223.68,66.15ZM88,144a8,8,0,0,1-16,0V112a8,8,0,0,1,16,0Zm40,0a8,8,0,0,1-16,0V112a8,8,0,0,1,16,0Zm40,0a8,8,0,0,1-16,0V112a8,8,0,0,1,16,0Z"/></svg>
+            <span class="cart-badge" id="cartBadge">0</span>
+          </button>
           <button class="header-action-btn" id="btnShowMembers" title="Show Members">
             <svg viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/></svg>
           </button>
@@ -188,6 +208,7 @@
         <!-- Stage for screen share -->
         <div class="call-stage" id="callStage">
           <video class="call-stage-video hidden" id="stageVideo" autoplay playsinline></video>
+          <img class="call-stage-image hidden" id="stageImage" alt="Screen share preview">
           <div class="call-stage-placeholder" id="stagePlaceholder">
             <svg viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Z"/></svg>
             <span>No one is sharing their screen</span>
@@ -237,12 +258,19 @@
           <button class="control-single" id="btnScreenShare" title="Share Screen">
             <svg viewBox="0 0 256 256"><path d="M232,56V200a16,16,0,0,1-16,16H144a8,8,0,0,1,0-16h72V56H40V96a8,8,0,0,1-16,0V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM32,184a8,8,0,0,0,0,16,8,8,0,0,1,8,8,8,8,0,0,0,16,0A24,24,0,0,0,32,184Zm0-32a8,8,0,0,0,0,16,40,40,0,0,1,40,40,8,8,0,0,0,16,0A56.06,56.06,0,0,0,32,152Zm0-32a8,8,0,0,0,0,16,72.08,72.08,0,0,1,72,72,8,8,0,0,0,16,0A88.1,88.1,0,0,0,32,120Z"/></svg>
           </button>
+
+          <!-- Remote control -->
+          <button class="control-single remote-control-btn" id="btnRemoteControl" title="Request Remote Control">
+            <span>Request Ctrl</span>
+          </button>
           
           <!-- Disconnect -->
           <button class="control-disconnect" id="btnDisconnect" title="Disconnect">
             <svg viewBox="0 0 256 256"><path d="M236.44,107.31l-25.17,25.17a8,8,0,0,1-11.31,0L174.83,107.4A32.12,32.12,0,0,0,152,96H104a32.12,32.12,0,0,0-22.83,11.4L56.05,132.48a8,8,0,0,1-11.31,0L19.57,107.31a8,8,0,0,1,0-11.32,128,128,0,0,1,181,0l35.88,35.88A8,8,0,0,1,236.44,107.31Z" transform="rotate(45, 128, 128)"/></svg>
           </button>
         </div>
+
+        <div class="remote-control-status hidden" id="remoteControlStatus"></div>
       </div>
       
       <!-- Text chat view -->
@@ -284,6 +312,39 @@
         </div>
       </div>
       
+      <!-- ============================================
+           HOME FEED VIEW
+           ============================================ -->
+      <div class="home-feed-view" id="homeFeedView">
+        <div class="home-feed-container">
+          <div class="home-feed-header">
+            <h2>Home Feed</h2>
+            <div class="home-feed-filters" id="homeFeedFilters">
+              <button class="home-feed-filter filter-chip active bg-accent-neon text-slate-900" id="feed-filter-all" data-filter="all" type="button">All</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-music" data-filter="music" type="button">Music</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-sample" data-filter="sample" type="button">Sample</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-sample-pack" data-filter="sample-pack" type="button">Sample Packs</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-drum-pack" data-filter="drum-pack" type="button">Drum Packs</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-loop" data-filter="loop" type="button">Loops</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-vocal" data-filter="vocal" type="button">Vocals</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-one-shot" data-filter="one-shot" type="button">One Shots</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-fx-pack" data-filter="fx-pack" type="button">FX Packs</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-midi-pack" data-filter="midi-pack" type="button">MIDI Packs</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-preset-pack" data-filter="preset-pack" type="button">Preset Packs</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-beat" data-filter="beat" type="button">Beats</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-collabs" data-filter="collabs" type="button">Collabs</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-video" data-filter="video" type="button">Video</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-service" data-filter="service" type="button">Service</button>
+              <button class="home-feed-filter filter-chip text-gray-300 hover:text-white hover:bg-slate-700" id="feed-filter-plugin" data-filter="plugin" type="button">Plugin</button>
+            </div>
+          </div>
+          <div class="library-status hidden" id="homeFeedStatus"></div>
+          <div class="home-feed-grid" id="homeFeedGrid">
+            <div class="simple-profile-post-empty">Loading...</div>
+          </div>
+        </div>
+      </div>
+
       <!-- ============================================
            FRIENDS VIEW (Home → Friends)
            ============================================ -->
@@ -331,6 +392,9 @@
             </div>
           </div>
           <div class="dm-actions">
+            <button class="dm-action-btn" title="Invite to Session" id="btnDMInvite">
+              <svg viewBox="0 0 256 256"><path d="M226,74.67l-88-48.18a20.2,20.2,0,0,0-19.92,0L30,74.67A20.24,20.24,0,0,0,20,92.2v71.6a20.24,20.24,0,0,0,10,17.53l88,48.18a20.2,20.2,0,0,0,19.92,0l88-48.18a20.24,20.24,0,0,0,10-17.53V92.2A20.24,20.24,0,0,0,226,74.67ZM128,42.15,208.2,86,128,129.85,47.8,86ZM40,102.59l78,42.62V213L40,170.41Zm98,110.62V145.21l78-42.62v67.82Z"/></svg>
+            </button>
             <button class="dm-action-btn" title="Voice Call" id="btnDMCall">
               <svg viewBox="0 0 256 256"><path d="M231.88,175.08A56.26,56.26,0,0,1,176,224C96.6,224,32,159.4,32,80A56.26,56.26,0,0,1,80.92,24.12a16,16,0,0,1,16.62,9.52l21.12,47.15,0,.12A16,16,0,0,1,117.39,96c-.18.27-.37.52-.57.77L96,121.45c7.49,15.22,23.41,31,38.83,38.51l24.34-20.71a8.12,8.12,0,0,1,.75-.56,16,16,0,0,1,15.17-1.4l.13.06,47.11,21.11A16,16,0,0,1,231.88,175.08Z"/></svg>
             </button>
@@ -369,6 +433,7 @@
             <button class="library-tab" data-tab="downloaded">Downloaded</button>
             <button class="library-tab" data-tab="cache">App Cloud/Cache</button>
             <button class="library-tab" data-tab="site">Site Library</button>
+            <button class="library-tab" data-tab="purchases">Purchases</button>
           </div>
           <div class="library-actions">
             <button class="library-view-btn active" id="btnGridView" title="Grid View">
@@ -390,6 +455,10 @@
             <svg viewBox="0 0 256 256"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
             <input type="text" placeholder="Search files..." id="librarySearchInput">
           </div>
+          <label class="library-upload-toggle" for="libraryProfileUploadsToggle">
+            <input type="checkbox" id="libraryProfileUploadsToggle">
+            <span>My Uploads</span>
+          </label>
           <button class="library-refresh-btn" id="btnRefreshSiteLibrary" type="button">Refresh Site Library</button>
           <div class="library-sort">
             <select id="librarySortSelect">
@@ -427,15 +496,221 @@
           </div>
         </div>
       </div>
+
+      <!-- ============================================
+           PROFILE VIEW (Simple MVP)
+           ============================================ -->
+      <div class="profile-simple-view" id="profileSimpleView">
+        <div class="profile-simple-card">
+          <div class="profile-simple-head">
+            <div class="profile-simple-avatar" id="simpleProfileAvatar">U</div>
+            <div class="profile-simple-main">
+              <h2 id="simpleProfileName">User</h2>
+              <div class="profile-simple-handle" id="simpleProfileHandle">@username</div>
+              <p class="profile-simple-bio" id="simpleProfileBio">No bio yet.</p>
+            </div>
+          </div>
+          <div class="profile-simple-meta">
+            <div class="profile-simple-row"><span>Location</span><strong id="simpleProfileLocation">-</strong></div>
+            <div class="profile-simple-row"><span>Posts</span><strong id="simpleProfilePostsCount">0</strong></div>
+            <div class="profile-simple-row"><span>Followers</span><strong id="simpleProfileFollowersCount">0</strong></div>
+            <div class="profile-simple-row"><span>Connections</span><strong id="simpleProfileConnectionsCount">0</strong></div>
+            <div class="profile-simple-row"><span>Following</span><strong id="simpleProfileFollowingCount">0</strong></div>
+          </div>
+          <div class="profile-simple-actions">
+            <button class="btn btn-secondary" id="btnSimpleProfileRefresh" type="button">Refresh</button>
+            <button class="btn btn-primary" id="btnSimpleProfileEdit" type="button">Edit Profile</button>
+          </div>
+          <div class="library-status" id="simpleProfileStatus" data-level="info"></div>
+
+          <div class="simple-profile-tabs" id="simpleProfileTabs">
+            <button class="simple-profile-tab active" data-tab="posts" type="button">Posts</button>
+            <button class="simple-profile-tab" data-tab="shares" type="button">Shares</button>
+            <button class="simple-profile-tab" data-tab="projects" type="button">Projects</button>
+            <button class="simple-profile-tab" data-tab="purchases" type="button">Purchases</button>
+            <button class="simple-profile-tab" data-tab="followers" type="button">Followers</button>
+            <button class="simple-profile-tab" data-tab="connections" type="button">Connections</button>
+            <button class="simple-profile-tab" data-tab="following" type="button">Following</button>
+          </div>
+
+          <div class="simple-profile-panel" id="simpleProfilePanelPosts" data-tab="posts">
+            <div class="simple-profile-section">
+              <h3>Profile Posts</h3>
+              <div class="simple-profile-posts" id="simpleProfilePosts">
+                <div class="simple-profile-post-empty">No posts yet</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="simple-profile-panel hidden" id="simpleProfilePanelShares" data-tab="shares">
+            <div class="simple-profile-section">
+              <h3>Shares</h3>
+              <div class="simple-profile-posts" id="simpleProfileShares">
+                <div class="simple-profile-post-empty">No shares yet</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="simple-profile-panel hidden" id="simpleProfilePanelProjects" data-tab="projects">
+            <div class="simple-profile-section">
+              <h3>Project Uploads</h3>
+              <div class="simple-profile-posts" id="simpleProfileProjects">
+                <div class="simple-profile-post-empty">No project uploads yet</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="simple-profile-panel hidden" id="simpleProfilePanelPurchases" data-tab="purchases">
+            <div class="simple-profile-section">
+              <h3>Purchases</h3>
+              <div class="simple-profile-posts" id="simpleProfilePurchasesList">
+                <div class="simple-profile-post-empty">No purchases yet</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="simple-profile-panel hidden" id="simpleProfilePanelFollowers" data-tab="followers">
+            <div class="simple-profile-section">
+              <h3>Followers</h3>
+              <div class="simple-profile-list" id="simpleProfileFollowersList"></div>
+            </div>
+          </div>
+
+          <div class="simple-profile-panel hidden" id="simpleProfilePanelConnections" data-tab="connections">
+            <div class="simple-profile-section">
+              <h3>Connections</h3>
+              <div class="simple-profile-list" id="simpleProfileConnectionsList"></div>
+            </div>
+          </div>
+
+          <div class="simple-profile-panel hidden" id="simpleProfilePanelFollowing" data-tab="following">
+            <div class="simple-profile-section">
+              <h3>Following</h3>
+              <div class="simple-profile-list" id="simpleProfileFollowingList"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Discover View -->
+      <div class="discover-view" id="discoverView">
+        <div class="discover-container">
+          <div class="discover-header">
+            <h2>Discover Users</h2>
+            <p>Find and connect with other creators</p>
+          </div>
+          <div class="discover-grid" id="discoverUsersGrid">
+            <div class="simple-profile-post-empty">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Marketplace View -->
+      <div class="marketplace-view" id="marketplaceView">
+        <div class="marketplace-container">
+          <div class="marketplace-header">
+            <h2>Marketplace</h2>
+            <button class="btn-marketplace-upload" id="btnMarketplaceUpload" type="button" title="Upload to marketplace">
+              <svg viewBox="0 0 256 256"><path d="M240,136v64a16,16,0,0,1-16,16H32a16,16,0,0,1-16-16V136a8,8,0,0,1,16,0v64H224V136a8,8,0,0,1,16,0ZM93.66,80.34l32-32a8,8,0,0,1,11.32,0l32,32A8,8,0,0,1,160,96a8,8,0,0,1-11.32-1.34L136,77.25V144a8,8,0,0,1-16,0V77.25L104.34,94.66A8,8,0,0,1,93.66,80.34Z"/></svg>
+              Upload
+            </button>
+            <div class="marketplace-filters" id="marketplaceFilters">
+              <button class="marketplace-filter filter-chip active bg-accent-neon text-slate-900" data-type="all" type="button">All</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="samples" type="button">Samples</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="instrumentals" type="button">Instrumentals</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="sample-packs" type="button">Sample Packs</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="drum-kits" type="button">Drum Kits</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="loops" type="button">Loops</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="vocals" type="button">Vocals</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="one-shots" type="button">One Shots</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="fx" type="button">FX</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="midi-packs" type="button">MIDI Packs</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="preset-banks" type="button">Preset Banks</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="songs" type="button">Songs</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="services" type="button">Services</button>
+              <button class="marketplace-filter filter-chip bg-slate-700 text-gray-300" data-type="plugins" type="button">Plugins</button>
+            </div>
+
+            <div class="marketplace-subfilters hidden" id="marketplaceSubfiltersPanel">
+              <div class="marketplace-subfilters-head">
+                <p class="marketplace-subfilters-hint" id="marketplaceSubfilterHint"></p>
+                <button class="marketplace-subfilters-reset" id="btnResetMarketplaceSubfilters" type="button">Reset filters</button>
+              </div>
+              <div class="marketplace-subfilters-grid">
+                <div class="marketplace-subfilter-group" id="marketplaceSubfilterGenreGroup">
+                  <label for="marketplaceSubfilterGenre">Genre</label>
+                  <select id="marketplaceSubfilterGenre">
+                    <option value="">All genres</option>
+                  </select>
+                </div>
+
+                <div class="marketplace-subfilter-group" id="marketplaceSubfilterBpmGroup">
+                  <label for="marketplaceSubfilterBpm">BPM</label>
+                  <input id="marketplaceSubfilterBpm" type="text" placeholder="120, 90-110, 140+">
+                </div>
+
+                <div class="marketplace-subfilter-group" id="marketplaceSubfilterKeyGroup">
+                  <label for="marketplaceSubfilterKey">Key</label>
+                  <input id="marketplaceSubfilterKey" type="text" placeholder="C#, Fm, Bb">
+                </div>
+
+                <div class="marketplace-subfilter-group" id="marketplaceSubfilterPackTypeGroup">
+                  <label for="marketplaceSubfilterPackType">Pack Type</label>
+                  <select id="marketplaceSubfilterPackType">
+                    <option value="">All pack types</option>
+                    <option value="sample-pack">Sample Pack</option>
+                    <option value="drum-pack">Drum Pack</option>
+                    <option value="fx-pack">FX Pack</option>
+                    <option value="midi-pack">MIDI Pack</option>
+                    <option value="preset-pack">Preset Pack</option>
+                    <option value="one-shot">One Shot</option>
+                    <option value="loop">Loop</option>
+                    <option value="vocal">Vocal</option>
+                  </select>
+                </div>
+
+                <div class="marketplace-subfilter-group" id="marketplaceSubfilterPriceGroup">
+                  <label for="marketplaceSubfilterPrice">Price</label>
+                  <select id="marketplaceSubfilterPrice">
+                    <option value="">Any price</option>
+                    <option value="free">Free</option>
+                    <option value="stream">Stream Only</option>
+                    <option value="paid">Paid</option>
+                    <option value="under-10">Under $10</option>
+                    <option value="10-25">$10 - $25</option>
+                    <option value="25-50">$25 - $50</option>
+                    <option value="50-100">$50 - $100</option>
+                    <option value="100+">$100+</option>
+                  </select>
+                </div>
+
+                <div class="marketplace-subfilter-group" id="marketplaceSubfilterTagsGroup">
+                  <label for="marketplaceSubfilterTags">Tags</label>
+                  <div class="marketplace-tags-controls">
+                    <input id="marketplaceSubfilterTags" type="text" placeholder="trap, dark, #melodic">
+                    <button class="marketplace-tags-toggle" id="btnMarketTagsToggle" type="button" aria-expanded="false">Suggestions</button>
+                  </div>
+                  <div class="marketplace-tag-suggestions hidden" id="marketplaceTagSuggestions"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="marketplace-grid" id="marketplaceItemsGrid">
+            <div class="simple-profile-post-empty">Loading...</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
   <div class="update-status-widget hidden" id="updateStatusWidget">
+    <button class="update-status-close" id="btnCloseUpdateWidget" type="button" aria-label="Close updater">✕</button>
     <div class="update-status-title" id="updateStatusTitle">Updater</div>
     <div class="update-status-text" id="updateStatusText">Idle</div>
     <div class="update-status-progress hidden" id="updateStatusProgress">0%</div>
     <div class="update-status-actions">
-      <button class="update-action-btn" id="btnCheckUpdatesNow" type="button">Check Now</button>
       <button class="update-action-btn hidden" id="btnUpdateLater" type="button">Remind Later</button>
       <button class="update-action-btn primary hidden" id="btnInstallUpdate" type="button">Install & Restart</button>
     </div>
@@ -503,6 +778,7 @@
                 <input type="text" class="form-input" id="siteMetaKey" placeholder="F#m">
               </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -571,7 +847,46 @@
       </div>
     </div>
   </div>
+
+  <div class="notification-box" id="notificationBox" aria-live="polite" aria-atomic="false"></div>
   
+  <!-- ============================================
+       SESSION INVITE MODAL
+       ============================================ -->
+  <div class="modal-overlay" id="sessionInviteModal">
+    <div class="modal modal-session-invite">
+      <div class="modal-header">
+        <h2>Invite to Session</h2>
+        <p id="sessionInviteSessionName">Session</p>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Invite Code</label>
+          <div class="session-invite-code-row">
+            <input type="text" class="form-input" id="sessionInviteCode" readonly>
+            <button class="btn btn-secondary session-invite-code-btn" id="btnCopySessionInviteCode">Copy Code</button>
+          </div>
+          <button class="btn btn-primary session-invite-text-btn" id="btnCopySessionInviteText">Copy Invite Message</button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Invite Friends</label>
+          <input type="text" class="form-input" id="sessionInviteFriendFilter" placeholder="Filter friends...">
+          <div class="session-invite-list" id="sessionInviteFriendsList"></div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">User Search</label>
+          <input type="text" class="form-input" id="sessionInviteUserSearch" placeholder="Search username or email...">
+          <div class="session-invite-search-results" id="sessionInviteUserResults"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnCloseSessionInvite">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============================================
        ADD FRIEND MODAL
        ============================================ -->
@@ -600,6 +915,61 @@
   <!-- ============================================
        CREATE SESSION MODAL
        ============================================ -->
+  <!-- ============================================
+       CART MODAL
+       ============================================ -->
+  <div class="modal-overlay" id="cartModal">
+    <div class="modal modal-cart">
+      <div class="modal-header">
+        <h2>Shopping Cart</h2>
+        <button class="modal-close" id="btnCloseCart">
+          <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body cart-body">
+        <div class="cart-items" id="cartItems">
+          <div class="cart-empty">Your cart is empty</div>
+        </div>
+      </div>
+      <div class="modal-footer cart-footer">
+        <div class="cart-total">
+          <span>Total:</span>
+          <strong id="cartTotal">$0.00</strong>
+        </div>
+        <button class="btn btn-primary" id="btnCheckout" disabled>Proceed to Checkout</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tier Selection Modal -->
+  <div class="modal-overlay" id="tierSelectionModal">
+    <div class="modal modal-tier-selection">
+      <div class="modal-header">
+        <button class="modal-close" id="btnCancelTierSelection">
+          <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body tier-body">
+        <div id="tierSelectionContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Marketplace Upload Modal -->
+  <div class="modal-overlay" id="marketplaceUploadModal">
+    <div class="modal modal-marketplace-upload">
+      <div class="modal-header">
+        <h2>Upload to Marketplace</h2>
+        <button class="modal-close" id="btnCloseMarketplaceUpload">
+          <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body marketplace-upload-body">
+        <div id="marketplaceUploadForm"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="createSessionModal">
     <div class="modal">
       <div class="modal-header">
@@ -628,6 +998,7 @@
     <div class="global-player-track">
       <div class="global-player-title" id="globalPlayerTitle">No track selected</div>
       <div class="global-player-meta" id="globalPlayerMeta">Select a sample or song to play</div>
+      <div class="global-player-waveform" id="globalPlayerWaveform"></div>
     </div>
     <div class="global-player-controls">
       <button class="global-player-btn" id="globalPlayerPrev" title="Previous">
@@ -650,7 +1021,7 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
     import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
-    import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, onSnapshot, addDoc } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, onSnapshot, addDoc } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
     import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
 
     // Firebase configuration (same as login.html)
@@ -677,6 +1048,8 @@
     window.firebaseDoc = doc;
     window.firebaseGetDoc = getDoc;
     window.firebaseSetDoc = setDoc;
+    window.firebaseUpdateDoc = updateDoc;
+    window.firebaseArrayUnion = arrayUnion;
     window.firebaseAddDoc = addDoc;
     window.firebaseCollection = collection;
     window.firebaseQuery = query;
@@ -737,6 +1110,9 @@
     });
   </script>
   
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <script src="../src/home-feed-utils.js"></script>
   <script src="../src/app.js"></script>
 </body>
 </html>

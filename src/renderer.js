@@ -2379,6 +2379,12 @@ function connectSignaling(url, room, token, statusEl) {
           startPeer(statusEl);
           return;
         }
+        if (msg.type === 'error') {
+          const reason = msg.error || 'unknown';
+          statusEl.textContent = `Signaling error: ${reason}`;
+          addNotification(`Signaling error: ${reason}`);
+          return;
+        }
         if (msg.type === 'offer') {
           handleOffer(msg, statusEl);
           return;

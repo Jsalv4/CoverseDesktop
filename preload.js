@@ -58,9 +58,23 @@ contextBridge.exposeInMainWorld('coverse', {
     ipcRenderer.on('coverse-update', (_event, payload) => callback(payload));
   },
 
+  // Stripe checkout events
+  onCheckoutSuccess: (callback) => {
+    ipcRenderer.on('checkout-success', (_event, data) => callback(data));
+  },
+  onCheckoutCancel: (callback) => {
+    ipcRenderer.on('checkout-cancel', () => callback());
+  },
+
   // External browser auth bridge
   getExternalLoginUrl: () => ipcRenderer.invoke('auth:external-login-url'),
   consumeExternalAuth: () => ipcRenderer.invoke('auth:consume-callback')
+});
+
+contextBridge.exposeInMainWorld('stripeBridge', {
+  getPublishableKey: () => ipcRenderer.invoke('stripe:getPublishableKey'),
+  createCheckoutSession: (payload) => ipcRenderer.invoke('stripe:createCheckoutSession', payload),
+  confirmPayment: (sessionId, authToken) => ipcRenderer.invoke('stripe:confirmPayment', { sessionId, authToken })
 });
 
 // Token/status bridge for auth

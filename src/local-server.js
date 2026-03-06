@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
@@ -73,6 +74,11 @@ class LocalServer {
   handleRequest(req, res) {
     const requestUrl = new URL(req.url, 'http://127.0.0.1');
 
+    if (requestUrl.pathname === '/proxy/media') {
+      this.handleMediaProxy(req, res, requestUrl);
+      return;
+    }
+
     if (requestUrl.pathname === '/auth/callback') {
       const token = requestUrl.searchParams.get('token') || '';
       const tokenType = requestUrl.searchParams.get('tokenType') || '';
@@ -136,6 +142,90 @@ class LocalServer {
         res.end(data);
       });
     });
+  }
+
+  handleMediaProxy(req, res, requestUrl) {
+    const target = String(requestUrl.searchParams.get('url') || '').trim();
+    if (!target) {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end('Missing media URL');
+      return;
+    }
+
+    let parsedTarget = null;
+    try {
+      parsedTarget = new URL(target);
+    } catch (_error) {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end('Invalid media URL');
+      return;
+    }
+
+    if (!['http:', 'https:'].includes(parsedTarget.protocol)) {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end('Unsupported media URL protocol');
+      return;
+    }
+
+    this.streamProxyRequest(req, res, parsedTarget.toString(), 0);
+  }
+
+  streamProxyRequest(req, res, targetUrl, redirectDepth) {
+    if (redirectDepth > 5) {
+      res.writeHead(508, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end('Too many redirects');
+      return;
+    }
+
+    const parsedTarget = new URL(targetUrl);
+    const client = parsedTarget.protocol === 'https:' ? https : http;
+    const outboundHeaders = {
+      'User-Agent': 'CoverseStandalone/1.0',
+      Accept: '*/*'
+    };
+
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      outboundHeaders.Range = String(rangeHeader);
+    }
+
+    const upstreamReq = client.request(parsedTarget, {
+      method: 'GET',
+      headers: outboundHeaders
+    }, (upstreamRes) => {
+      const statusCode = Number(upstreamRes.statusCode || 502);
+
+      if ([301, 302, 303, 307, 308].includes(statusCode) && upstreamRes.headers.location) {
+        const redirected = new URL(upstreamRes.headers.location, parsedTarget).toString();
+        upstreamRes.resume();
+        this.streamProxyRequest(req, res, redirected, redirectDepth + 1);
+        return;
+      }
+
+      const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=300'
+      };
+
+      if (upstreamRes.headers['content-type']) headers['Content-Type'] = upstreamRes.headers['content-type'];
+      if (upstreamRes.headers['content-length']) headers['Content-Length'] = upstreamRes.headers['content-length'];
+      if (upstreamRes.headers['accept-ranges']) headers['Accept-Ranges'] = upstreamRes.headers['accept-ranges'];
+      if (upstreamRes.headers['content-range']) headers['Content-Range'] = upstreamRes.headers['content-range'];
+
+      res.writeHead(statusCode, headers);
+      upstreamRes.pipe(res);
+    });
+
+    upstreamReq.on('error', (_error) => {
+      if (res.headersSent) {
+        res.end();
+        return;
+      }
+      res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end('Media proxy failed');
+    });
+
+    upstreamReq.end();
   }
 }
 
