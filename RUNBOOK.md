@@ -265,6 +265,16 @@ Notes:
 - Windows SmartScreen warnings may still appear briefly on newly signed binaries until reputation builds.
 - EV code signing certs reduce SmartScreen friction faster than standard OV certs.
 
+Required certificate types:
+- macOS: **Developer ID Application** certificate (Apple Developer Program)
+- Windows: Authenticode code-signing certificate (OV or EV)
+
+If a tester already has an older unsigned mac build, temporary unblock is:
+1. Right-click `Coverse.app` -> **Open**
+2. System Settings -> Privacy & Security -> **Open Anyway** (if prompted)
+
+This bypass is only for existing unsigned builds. New tagged releases should use signed/notarized artifacts from CI.
+
 ### In-App Auto-Update (Prompt + Restart)
 
 The app now checks for updates when packaged and prompts users to download/restart.

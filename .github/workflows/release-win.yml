@@ -91,3 +91,24 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run release:mac
+
+      - name: Verify macOS Gatekeeper acceptance
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_count=0
+          shopt -s nullglob
+          for app_path in dist/mac*/Coverse.app; do
+            app_count=$((app_count + 1))
+            echo "Verifying signature: $app_path"
+            codesign --verify --deep --strict --verbose=2 "$app_path"
+            echo "Assessing Gatekeeper acceptance: $app_path"
+            spctl --assess --type execute --verbose=4 "$app_path"
+          done
+
+          if [ "$app_count" -eq 0 ]; then
+            echo "No macOS app bundles found in dist/mac*" >&2
+            exit 1
+          fi

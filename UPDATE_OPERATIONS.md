@@ -41,6 +41,10 @@ Signing/notarization secrets required for tag releases:
    - `APPLE_APP_SPECIFIC_PASSWORD`
    - `APPLE_TEAM_ID`
 
+Certificate requirements:
+- `MAC_CSC_LINK` must point to a **Developer ID Application** certificate export.
+- `WIN_CSC_LINK` must point to an Authenticode code-signing cert (OV/EV).
+
 ## 4) Release process (every update)
 
 1. Bump app version in `package.json`.
@@ -60,6 +64,7 @@ Signing/notarization secrets required for tag releases:
 - Installer URL from `latest.yml` is downloadable.
 - App shows update prompt on startup or manual check.
 - Update downloads and restart/install succeeds.
+- macOS release workflow includes Gatekeeper assessment (`spctl --assess`) and fails if trust checks do not pass.
 
 ## 6) CDN/cache policy (important)
 
