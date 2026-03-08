@@ -22,7 +22,8 @@ let userLibrary = [];
 let currentDMUser = null;
 let currentConversationId = null;
 let pendingFriendRequests = [];
-let currentFriendsTab = 'online';
+let currentFriendsTab = 'all';
+let addFriendModalMode = 'friend';
 let currentProfileTab = 'posts';
 let sessionInviteSearchTimer = null;
 let lastSessionId = null;
@@ -36,8 +37,15 @@ let lastPurchasesSyncError = '';
 let inviteNotificationsUnsubscribe = null;
 let inviteNotificationPrimed = false;
 let seenInviteNotificationIds = new Set();
+let followNotificationsUnsubscribe = null;
+let followNotificationsPrimed = false;
+let seenFollowNotificationIds = new Set();
 let notificationCounter = 0;
 let notificationTimers = new Map();
+let notificationHistory = [];
+let notificationUnreadCount = 0;
+
+const NOTIFICATION_HISTORY_LIMIT = 40;
 
 const SESSION_CACHE_KEY = 'coverse_sessions_cache';
 const LAST_SESSION_KEY = 'coverse_last_session';
@@ -4482,8 +4490,10 @@ async function confirmMarketplacePayment(sessionId) {
   return confirmation;
 }
 
-function dismissNotificationToast(toastEl) {
+function dismissNotificationToast(toastEl, options = {}) {
   if (!toastEl || toastEl.dataset.closed === '1') return;
+
+  const immediate = options.immediate === true;
 
   toastEl.dataset.closed = '1';
   const toastId = String(toastEl.dataset.toastId || '').trim();
@@ -4493,11 +4503,154 @@ function dismissNotificationToast(toastEl) {
     notificationTimers.delete(toastId);
   }
 
+  if (immediate) {
+    toastEl.remove();
+    return;
+  }
+
   toastEl.classList.remove('is-visible');
   toastEl.classList.add('is-leaving');
   setTimeout(() => {
     toastEl.remove();
   }, 180);
+}
+
+function updateNotificationUnreadBadge() {
+  const badge = document.getElementById('notificationUnreadBadge');
+  if (!badge) return;
+
+  const count = Math.max(0, Number(notificationUnreadCount) || 0);
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+    badge.textContent = '0';
+  }
+}
+
+function updatePendingFriendsBadge() {
+  const badge = document.getElementById('friendsPendingBadge');
+  const button = document.getElementById('btnShowMembers');
+  const count = Array.isArray(pendingFriendRequests) ? pendingFriendRequests.length : 0;
+
+  if (badge) {
+    if (count > 0 && !currentSession) {
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+      badge.textContent = '0';
+    }
+  }
+
+  if (button) {
+    const title = currentSession
+      ? 'Show Members'
+      : (count > 0 ? `Friends (${count} pending)` : 'Friends');
+    button.title = title;
+    button.setAttribute('aria-label', title);
+  }
+}
+
+function getNotificationTimeLabel(timestampMs = 0) {
+  const date = new Date(Number(timestampMs) || Date.now());
+  const now = Date.now();
+  const diffMs = Math.max(0, now - date.getTime());
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function renderNotificationCenter() {
+  const listEl = document.getElementById('notificationCenterList');
+  if (!listEl) return;
+
+  if (!notificationHistory.length) {
+    listEl.innerHTML = '<div class="notification-center-empty">No notifications yet</div>';
+    return;
+  }
+
+  listEl.innerHTML = notificationHistory.map((entry) => {
+    const level = ['info', 'success', 'warning', 'error'].includes(String(entry.level || '').toLowerCase())
+      ? String(entry.level || '').toLowerCase()
+      : 'info';
+    return `
+      <div class="notification-center-item notification-center-item--${level}">
+        <div class="notification-center-message">${escapeHtml(String(entry.message || ''))}</div>
+        <div class="notification-center-time">${escapeHtml(getNotificationTimeLabel(entry.timestampMs))}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function closeNotificationCenter(options = {}) {
+  const panel = document.getElementById('notificationCenter');
+  const trigger = document.getElementById('btnNotifications');
+  panel?.classList.add('hidden');
+  trigger?.setAttribute('aria-expanded', 'false');
+  if (options.focusTrigger === true) {
+    trigger?.focus();
+  }
+}
+
+function openNotificationCenter() {
+  const panel = document.getElementById('notificationCenter');
+  const trigger = document.getElementById('btnNotifications');
+  if (!panel) return;
+
+  renderNotificationCenter();
+  panel.classList.remove('hidden');
+  trigger?.setAttribute('aria-expanded', 'true');
+
+  notificationUnreadCount = 0;
+  updateNotificationUnreadBadge();
+}
+
+function toggleNotificationCenter() {
+  const panel = document.getElementById('notificationCenter');
+  if (!panel) return;
+
+  if (panel.classList.contains('hidden')) {
+    openNotificationCenter();
+  } else {
+    closeNotificationCenter({ focusTrigger: true });
+  }
+}
+
+function addNotificationHistoryEntry(message, level = 'info') {
+  const text = String(message || '').trim();
+  if (!text) return;
+
+  const normalizedLevel = ['info', 'success', 'warning', 'error'].includes(String(level || '').toLowerCase())
+    ? String(level || '').toLowerCase()
+    : 'info';
+
+  notificationHistory.unshift({
+    id: `notice-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    message: text,
+    level: normalizedLevel,
+    timestampMs: Date.now()
+  });
+
+  if (notificationHistory.length > NOTIFICATION_HISTORY_LIMIT) {
+    notificationHistory = notificationHistory.slice(0, NOTIFICATION_HISTORY_LIMIT);
+  }
+
+  const panel = document.getElementById('notificationCenter');
+  const isOpen = panel && !panel.classList.contains('hidden');
+  if (!isOpen) {
+    notificationUnreadCount += 1;
+    updateNotificationUnreadBadge();
+  }
+
+  renderNotificationCenter();
 }
 
 function showNotification(message, options = {}) {
@@ -4512,6 +4665,8 @@ function showNotification(message, options = {}) {
   const durationMs = Number.isFinite(durationValue) && durationValue >= 0 ? durationValue : 4200;
   const actionLabel = String(options.actionLabel || '').trim();
   const actionHandler = typeof options.action === 'function' ? options.action : null;
+
+  addNotificationHistoryEntry(text, level);
 
   const status = document.getElementById('simpleProfileStatus') || document.getElementById('libraryStatus');
   if (status) {
@@ -4570,7 +4725,7 @@ function showNotification(message, options = {}) {
   while (box.children.length > 5) {
     const oldest = box.lastElementChild;
     if (!oldest) break;
-    dismissNotificationToast(oldest);
+    dismissNotificationToast(oldest, { immediate: true });
   }
 
   if (durationMs > 0) {
@@ -6436,6 +6591,7 @@ async function loadUserData() {
     console.error('[Coverse] Error loading user data:', error);
   } finally {
     initInviteNotificationSync();
+    initFollowNotificationSync();
   }
 }
 
@@ -6829,6 +6985,140 @@ async function sendSessionInviteMessageToUser(targetUid, targetSession, inviteCo
   } catch (error) {
     console.warn('[Coverse] Could not send invite in DM:', error);
     return false;
+  }
+}
+
+async function getUserDisplayNameByUid(uid) {
+  const targetUid = String(uid || '').trim();
+  if (!targetUid) return 'User';
+
+  if (targetUid === String(currentUser?.uid || '').trim()) {
+    return String(currentUser?.displayName || currentUser?.email || 'You').trim() || 'You';
+  }
+
+  const friend = userFriends.find((entry) => String(entry.uid || entry.id || '').trim() === targetUid);
+  if (friend?.displayName) return String(friend.displayName).trim() || 'User';
+
+  const conversation = userConversations.find((entry) => String(entry.otherUid || entry.otherUser?.uid || '').trim() === targetUid);
+  if (conversation?.otherUser?.displayName) {
+    return String(conversation.otherUser.displayName).trim() || 'User';
+  }
+
+  if (!window.firebaseDb || !window.firebaseDoc || !window.firebaseGetDoc) return 'User';
+
+  try {
+    const userDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'users', targetUid));
+    if (userDoc.exists()) {
+      const userData = userDoc.data() || {};
+      return String(userData.displayName || userData.username || userData.email || 'User').trim() || 'User';
+    }
+  } catch (_error) {
+    // no-op
+  }
+
+  return 'User';
+}
+
+function stopFollowNotificationSync() {
+  if (typeof followNotificationsUnsubscribe === 'function') {
+    followNotificationsUnsubscribe();
+  }
+  followNotificationsUnsubscribe = null;
+  followNotificationsPrimed = false;
+  seenFollowNotificationIds = new Set();
+}
+
+function initFollowNotificationSync() {
+  stopFollowNotificationSync();
+
+  if (
+    !currentUser?.uid ||
+    !window.firebaseDb ||
+    !window.firebaseOnSnapshot ||
+    !window.firebaseCollection ||
+    !window.firebaseQuery ||
+    !window.firebaseWhere
+  ) {
+    return;
+  }
+
+  try {
+    const db = window.firebaseDb;
+    const syncStartedAtMs = Date.now();
+    const followsRef = window.firebaseCollection(db, 'follows');
+    const incomingFollowsQuery = window.firebaseQuery(
+      followsRef,
+      window.firebaseWhere('following', '==', currentUser.uid)
+    );
+
+    followNotificationsUnsubscribe = window.firebaseOnSnapshot(
+      incomingFollowsQuery,
+      async (snapshot) => {
+        if (!followNotificationsPrimed) {
+          snapshot.forEach((docSnap) => {
+            seenFollowNotificationIds.add(docSnap.id);
+          });
+          followNotificationsPrimed = true;
+          return;
+        }
+
+        const addedChanges = snapshot.docChanges().filter((change) => (
+          change.type === 'added' && !seenFollowNotificationIds.has(change.doc.id)
+        ));
+
+        if (!addedChanges.length) {
+          return;
+        }
+
+        if (addedChanges.length > 8) {
+          addedChanges.forEach((change) => {
+            seenFollowNotificationIds.add(change.doc.id);
+          });
+          Promise.all([loadFriends(), loadConversations()]).catch(() => {});
+          return;
+        }
+
+        let hasIncomingChanges = false;
+
+        for (const change of addedChanges) {
+          seenFollowNotificationIds.add(change.doc.id);
+
+          const data = change.doc.data() || {};
+          const followerUid = String(data.follower || '').trim();
+          if (!followerUid || followerUid === currentUser.uid) continue;
+
+          const createdAtMs = getTimestampMs(data.createdAt || data.updatedAt || data.timestamp);
+          if (createdAtMs > 0 && createdAtMs < (syncStartedAtMs - 15000)) {
+            continue;
+          }
+
+          hasIncomingChanges = true;
+          const followerName = await getUserDisplayNameByUid(followerUid);
+          const existingFriend = userFriends.find((entry) => String(entry.uid || entry.id || '').trim() === followerUid);
+          const alreadyConnected = existingFriend?.status === 'mutual' || existingFriend?.status === 'following';
+
+          showNotification(
+            alreadyConnected
+              ? `${followerName} followed you back. You can message each other now.`
+              : `${followerName} added you.`,
+            {
+              level: 'info',
+              actionLabel: 'Message',
+              action: () => openDMWithUser(followerUid)
+            }
+          );
+        }
+
+        if (hasIncomingChanges) {
+          Promise.all([loadFriends(), loadConversations()]).catch(() => {});
+        }
+      },
+      (error) => {
+        console.warn('[Coverse] Follow notification listener failed:', error);
+      }
+    );
+  } catch (error) {
+    console.warn('[Coverse] Could not start follow notifications:', error);
   }
 }
 
@@ -7459,9 +7749,11 @@ async function loadPendingRequests() {
     }
     
     console.log('[Coverse] Pending requests:', pendingFriendRequests.length);
+    updatePendingFriendsBadge();
   } catch (error) {
     console.log('[Coverse] Friend requests not found');
     pendingFriendRequests = [];
+    updatePendingFriendsBadge();
   }
 }
 
@@ -7788,6 +8080,139 @@ function formatMessageTime(timestamp) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+function applyAddFriendModalMode(mode = 'friend') {
+  const nextMode = mode === 'dm' ? 'dm' : 'friend';
+  addFriendModalMode = nextMode;
+
+  const modal = document.getElementById('addFriendModal');
+  if (!modal) return;
+
+  const titleEl = modal.querySelector('.modal-header h2');
+  const subtitleEl = modal.querySelector('.modal-header p');
+  const labelEl = modal.querySelector('.form-group .form-label');
+  const inputEl = document.getElementById('friendSearchInput');
+  const actionBtn = document.getElementById('btnSendFriendRequest');
+
+  if (nextMode === 'dm') {
+    if (titleEl) titleEl.textContent = 'Start a Direct Message';
+    if (subtitleEl) subtitleEl.textContent = 'Search collaborators and start a conversation instantly';
+    if (labelEl) labelEl.textContent = 'Find collaborator';
+    if (inputEl) inputEl.placeholder = 'Search username or email...';
+    if (actionBtn) actionBtn.textContent = 'Start Message';
+  } else {
+    if (titleEl) titleEl.textContent = 'Add a Collaborator';
+    if (subtitleEl) subtitleEl.textContent = 'You can add collaborators by their username or email';
+    if (labelEl) labelEl.textContent = 'Username or Email';
+    if (inputEl) inputEl.placeholder = 'Enter username or email...';
+    if (actionBtn) actionBtn.textContent = 'Send Request';
+  }
+}
+
+function resetAddFriendModalInputs(options = {}) {
+  const preserveMode = options.preserveMode === true;
+  const searchInputEl = document.getElementById('friendSearchInput');
+  if (searchInputEl) {
+    searchInputEl.value = '';
+  }
+  document.getElementById('friendSearchResults')?.replaceChildren();
+  document.getElementById('btnSendFriendRequest')?.setAttribute('disabled', 'disabled');
+  if (!preserveMode) {
+    applyAddFriendModalMode('friend');
+  }
+}
+
+function collectQuickDmCandidates(limit = 12) {
+  const byUid = new Map();
+
+  const upsertCandidate = (entry = {}) => {
+    const uid = String(entry.uid || entry.id || '').trim();
+    if (!uid || uid === String(currentUser?.uid || '').trim()) return;
+
+    const existing = byUid.get(uid) || {};
+    byUid.set(uid, {
+      uid,
+      displayName: String(entry.displayName || entry.username || existing.displayName || 'User').trim() || 'User',
+      email: String(entry.email || existing.email || '').trim(),
+      avatarUrl: normalizeAvatarUrl(entry.avatarUrl || entry.photoURL || existing.avatarUrl || ''),
+      subtitle: String(entry.subtitle || existing.subtitle || '').trim()
+    });
+  };
+
+  userFriends.forEach((friend) => {
+    upsertCandidate({
+      uid: friend.uid || friend.id,
+      displayName: friend.displayName,
+      email: friend.email,
+      avatarUrl: friend.avatarUrl,
+      subtitle: getConnectionStatusText(friend)
+    });
+  });
+
+  userConversations.forEach((conversation) => {
+    const otherUser = conversation.otherUser || {};
+    upsertCandidate({
+      uid: conversation.otherUid || otherUser.uid,
+      displayName: otherUser.displayName,
+      email: otherUser.email,
+      avatarUrl: otherUser.avatarUrl,
+      subtitle: conversation.lastMessage ? 'Recent conversation' : ''
+    });
+  });
+
+  return Array.from(byUid.values())
+    .sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || '')))
+    .slice(0, limit);
+}
+
+function renderAddFriendModalDefaultResults() {
+  const container = document.getElementById('friendSearchResults');
+  if (!container) return;
+
+  if (addFriendModalMode !== 'dm') {
+    container.innerHTML = '';
+    return;
+  }
+
+  const candidates = collectQuickDmCandidates();
+  if (!candidates.length) {
+    container.innerHTML = '<div class="search-no-results">Search for a user to start messaging.</div>';
+    return;
+  }
+
+  container.innerHTML = candidates.map((user) => {
+    const avatar = user.avatarUrl
+      ? `<img src="${user.avatarUrl}" alt="">`
+      : `<span>${getInitials(user.displayName || 'U')}</span>`;
+    const subtitle = user.subtitle || user.email || 'Start conversation';
+
+    return `
+      <div class="search-result-item" data-user-id="${user.uid}" onclick="selectSearchResult(this)">
+        <div class="search-result-avatar">${avatar}</div>
+        <div class="search-result-info">
+          <div class="search-result-name">${escapeHtml(user.displayName || 'User')}</div>
+          <div class="search-result-email">${escapeHtml(subtitle)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openAddFriendModal(mode = 'friend') {
+  applyAddFriendModalMode(mode);
+  resetAddFriendModalInputs({ preserveMode: true });
+
+  if (addFriendModalMode === 'dm') {
+    renderAddFriendModalDefaultResults();
+  }
+
+  openModal('addFriendModal');
+}
+
+function closeAddFriendModal() {
+  closeModal('addFriendModal');
+  resetAddFriendModalInputs();
+}
+
 // ============================================
 // FRIEND ACTIONS
 // ============================================
@@ -7824,47 +8249,69 @@ async function searchUsers(query) {
 }
 
 async function sendFriendRequest(toUid) {
-  if (!toUid || !currentUser || !window.firebaseDb) return;
+  const targetUid = String(toUid || '').trim();
+  if (!targetUid || !currentUser || !window.firebaseDb) return false;
   
   try {
     const db = window.firebaseDb;
+    const targetName = await getUserDisplayNameByUid(targetUid);
+    const existingEntry = userFriends.find((entry) => String(entry.uid || entry.id || '').trim() === targetUid);
+    const wasAlreadyFollower = existingEntry?.status === 'follower' || existingEntry?.status === 'mutual';
     
     // Check if already following
     const followsRef = window.firebaseCollection(db, 'follows');
     const existingQuery = window.firebaseQuery(
       followsRef,
       window.firebaseWhere('follower', '==', currentUser.uid),
-      window.firebaseWhere('following', '==', toUid)
+      window.firebaseWhere('following', '==', targetUid)
     );
     const existing = await window.firebaseGetDocs(existingQuery);
     
     if (!existing.empty) {
-      alert('You are already following this user!');
-      return;
+      showNotification(`You already follow ${targetName}.`, {
+        level: 'info',
+        actionLabel: 'Message',
+        action: () => openDMWithUser(targetUid)
+      });
+      return false;
     }
     
     // Create follow relationship (matches web app structure)
     await window.firebaseAddDoc(followsRef, {
       follower: currentUser.uid,
-      following: toUid,
+      following: targetUid,
       createdAt: new Date()
     });
     
-    console.log('[Coverse] Now following:', toUid);
-    
-    // Clear and close modal
-    document.getElementById('friendSearchInput').value = '';
-    document.getElementById('friendSearchResults').innerHTML = '';
-    closeModal('addFriendModal');
+    console.log('[Coverse] Now following:', targetUid);
     
     // Reload friends list
-    await loadFriends();
-    
-    alert('Connection added!');
+    await Promise.all([loadFriends(), loadConversations()]);
+
+    closeAddFriendModal();
+
+    const updatedEntry = userFriends.find((entry) => String(entry.uid || entry.id || '').trim() === targetUid);
+    const isMutual = updatedEntry?.status === 'mutual' || wasAlreadyFollower;
+
+    showNotification(
+      isMutual
+        ? `You and ${targetName} are now connected.`
+        : `Added ${targetName}.`,
+      {
+        level: 'success',
+        actionLabel: 'Message',
+        action: () => openDMWithUser(targetUid)
+      }
+    );
+
+    return true;
     
   } catch (error) {
     console.error('[Coverse] Error adding connection:', error);
-    alert('Failed to add connection: ' + (error.message || 'Unknown error'));
+    showNotification(`Failed to add connection: ${error.message || 'Unknown error'}`, {
+      level: 'error'
+    });
+    return false;
   }
 }
 
@@ -7874,14 +8321,25 @@ async function acceptFriendRequest(requestId, fromUid) {
   
   try {
     const db = window.firebaseDb;
+    const senderUid = String(fromUid || '').trim();
+    const senderName = await getUserDisplayNameByUid(senderUid);
     
     // Follow them back (creates mutual connection)
     const followsRef = window.firebaseCollection(db, 'follows');
-    await window.firebaseAddDoc(followsRef, {
-      follower: currentUser.uid,
-      following: fromUid,
-      createdAt: new Date()
-    });
+    const existingQuery = window.firebaseQuery(
+      followsRef,
+      window.firebaseWhere('follower', '==', currentUser.uid),
+      window.firebaseWhere('following', '==', senderUid)
+    );
+    const existingSnap = await window.firebaseGetDocs(existingQuery);
+
+    if (existingSnap.empty) {
+      await window.firebaseAddDoc(followsRef, {
+        follower: currentUser.uid,
+        following: senderUid,
+        createdAt: new Date()
+      });
+    }
     
     // If there was a friendRequest, mark it as accepted
     if (requestId) {
@@ -7897,14 +8355,20 @@ async function acceptFriendRequest(requestId, fromUid) {
     }
     
     // Reload friends
-    await loadFriends();
-    await loadPendingRequests();
+    await Promise.all([loadFriends(), loadPendingRequests(), loadConversations()]);
     renderFriendsList();
+
+    showNotification(`You and ${senderName} are now connected.`, {
+      level: 'success',
+      actionLabel: 'Message',
+      action: () => openDMWithUser(senderUid)
+    });
     
-    console.log('[Coverse] Connection accepted - now mutual friends with:', fromUid);
+    console.log('[Coverse] Connection accepted - now mutual friends with:', senderUid);
     
   } catch (error) {
     console.error('[Coverse] Error accepting connection:', error);
+    showNotification('Could not accept request. Please try again.', { level: 'error' });
   }
 }
 
@@ -7923,9 +8387,12 @@ async function declineFriendRequest(requestId) {
     // Reload pending requests
     await loadPendingRequests();
     renderFriendsList();
+
+    showNotification('Request ignored.');
     
   } catch (error) {
     console.error('[Coverse] Error declining friend request:', error);
+    showNotification('Could not ignore request. Please try again.', { level: 'error' });
   }
 }
 
@@ -8028,7 +8495,14 @@ async function openDMWithUser(userId, options = {}) {
       
     } catch (error) {
       console.error('[Coverse] Error creating conversation:', error);
-      alert('Failed to start conversation: ' + (error.message || 'Unknown error'));
+      const errorMessage = String(error?.message || 'Unknown error');
+      const isPermissionError = /missing or insufficient permissions|permission[-_ ]denied/i.test(errorMessage);
+      showNotification(
+        isPermissionError
+          ? 'Cannot start a new conversation because Firestore denied permission. Please update/deploy Firestore rules, then try again.'
+          : `Failed to start conversation: ${errorMessage}`,
+        { level: 'error', duration: isPermissionError ? 7000 : 5200 }
+      );
       creatingConversationWith = null; // Clear flag on error
       return null;
     }
@@ -11142,6 +11616,7 @@ async function logout() {
   console.log('[Coverse] Logging out...');
 
   stopInviteNotificationSync();
+  stopFollowNotificationSync();
   
   try {
     if (window.firebaseAuth && window.firebaseSignOut) {
@@ -11192,6 +11667,7 @@ function selectSession(sessionId) {
   // Update session header
   document.getElementById('currentSessionName').textContent = currentSession.name;
   document.getElementById('btnCopySessionInvite')?.classList.remove('hidden');
+  updatePendingFriendsBadge();
   
   // Show channel list, hide home sidebar
   document.getElementById('homeSidebar')?.classList.add('hidden');
@@ -11228,6 +11704,7 @@ function showHomeView() {
   // Show home sidebar (Friends/DMs), hide channel list
   document.getElementById('homeSidebar')?.classList.remove('hidden');
   document.getElementById('channelList')?.classList.add('hidden');
+  updatePendingFriendsBadge();
   
   // Show friends view by default
   showFriendsView();
@@ -11314,6 +11791,61 @@ function initChannelBar() {
     e.stopPropagation();
     await openSessionInviteModal();
   });
+
+  document.getElementById('btnNotifications')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleNotificationCenter();
+  });
+
+  document.getElementById('btnClearNotifications')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    notificationHistory = [];
+    renderNotificationCenter();
+  });
+
+  document.getElementById('btnCloseNotifications')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeNotificationCenter({ focusTrigger: true });
+  });
+
+  document.getElementById('notificationCenter')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+
+  document.addEventListener('click', () => {
+    closeNotificationCenter();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeNotificationCenter();
+    }
+  });
+
+  document.getElementById('btnShowMembers')?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeNotificationCenter();
+
+    if (currentSession) {
+      await openSessionInviteModal();
+      return;
+    }
+
+    currentFriendsTab = pendingFriendRequests.length > 0 ? 'pending' : 'all';
+    document.querySelectorAll('.friends-tab').forEach((tab) => {
+      tab.classList.toggle('active', tab.dataset.tab === currentFriendsTab);
+    });
+
+    showFriendsView();
+    renderFriendsList();
+    setTimeout(() => {
+      document.getElementById('searchFriends')?.focus();
+    }, 100);
+  });
   
   // Home navigation items
   document.querySelectorAll('.home-nav-item').forEach(item => {
@@ -11345,10 +11877,13 @@ function initChannelBar() {
       renderFriendsList();
     });
   });
+  document.querySelectorAll('.friends-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.tab === currentFriendsTab);
+  });
   
   // Add friend button
   document.getElementById('btnAddFriend')?.addEventListener('click', () => {
-    openModal('addFriendModal');
+    openAddFriendModal('friend');
   });
   
   // DM send button and input
@@ -11368,8 +11903,12 @@ function initChannelBar() {
   
   // New DM button
   document.getElementById('btnNewDM')?.addEventListener('click', () => {
-    openModal('addFriendModal'); // Reuse add friend modal for now
+    openAddFriendModal('dm');
   });
+
+  renderNotificationCenter();
+  updateNotificationUnreadBadge();
+  updatePendingFriendsBadge();
 }
 
 function selectChannel(channelId, channelType) {
@@ -13682,9 +14221,7 @@ function initModals() {
   
   // Add friend modal
   document.getElementById('btnCancelAddFriend')?.addEventListener('click', () => {
-    closeModal('addFriendModal');
-    document.getElementById('friendSearchInput').value = '';
-    document.getElementById('friendSearchResults').innerHTML = '';
+    closeAddFriendModal();
   });
   
   // Friend search input
@@ -13694,7 +14231,12 @@ function initModals() {
     const query = e.target.value.trim();
     
     if (query.length < 2) {
-      document.getElementById('friendSearchResults').innerHTML = '';
+      document.getElementById('btnSendFriendRequest').disabled = true;
+      if (addFriendModalMode === 'dm') {
+        renderAddFriendModalDefaultResults();
+      } else {
+        document.getElementById('friendSearchResults').innerHTML = '';
+      }
       return;
     }
     
@@ -13706,18 +14248,33 @@ function initModals() {
     }, 300);
   });
   
-  document.getElementById('btnSendFriendRequest')?.addEventListener('click', () => {
+  document.getElementById('btnSendFriendRequest')?.addEventListener('click', async () => {
     const selected = document.querySelector('.search-result-item.selected');
-    if (selected) {
-      sendFriendRequest(selected.dataset.userId);
+    if (!selected) return;
+
+    const targetUid = String(selected.dataset.userId || '').trim();
+    if (!targetUid) return;
+
+    if (addFriendModalMode === 'dm') {
+      const conversation = await openDMWithUser(targetUid, { openView: true });
+      if (conversation) {
+        closeAddFriendModal();
+      }
+      return;
     }
+
+    await sendFriendRequest(targetUid);
   });
   
   // Close modal on overlay click
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        closeModal(overlay.id);
+        if (overlay.id === 'addFriendModal') {
+          closeAddFriendModal();
+        } else {
+          closeModal(overlay.id);
+        }
       }
     });
   });
@@ -13726,10 +14283,11 @@ function initModals() {
 function renderSearchResults(results) {
   const container = document.getElementById('friendSearchResults');
   if (!container) return;
+
+  document.getElementById('btnSendFriendRequest').disabled = true;
   
   if (results.length === 0) {
     container.innerHTML = '<div class="search-no-results">No users found</div>';
-    document.getElementById('btnSendFriendRequest').disabled = true;
     return;
   }
   

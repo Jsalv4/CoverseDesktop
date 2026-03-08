@@ -185,9 +185,26 @@
             <svg viewBox="0 0 256 256"><path d="M223.68,66.15,208,32.41a16,16,0,0,0-13.12-8.41H61.12A16,16,0,0,0,48,32.41L32.32,66.15A16.13,16.13,0,0,0,32,72v32a40,40,0,0,0,8,24v64a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V128a40,40,0,0,0,8-24V72A16.13,16.13,0,0,0,223.68,66.15ZM88,144a8,8,0,0,1-16,0V112a8,8,0,0,1,16,0Zm40,0a8,8,0,0,1-16,0V112a8,8,0,0,1,16,0Zm40,0a8,8,0,0,1-16,0V112a8,8,0,0,1,16,0Z"/></svg>
             <span class="cart-badge" id="cartBadge">0</span>
           </button>
-          <button class="header-action-btn" id="btnShowMembers" title="Show Members">
-            <svg viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/></svg>
+          <button class="header-action-btn" id="btnNotifications" title="Notifications" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" type="button">
+            <svg viewBox="0 0 256 256"><path d="M128,24a56.06,56.06,0,0,0-56,56v24.69c0,15.62-4.32,30.87-12.49,44.1L46.73,169.3A16,16,0,0,0,60.47,192H195.53a16,16,0,0,0,13.74-22.7l-12.78-20.51C188.32,135.56,184,120.31,184,104.69V80A56.06,56.06,0,0,0,128,24Zm0,208a32,32,0,0,0,30.94-24H97.06A32,32,0,0,0,128,232Z"/></svg>
+            <span class="header-action-badge hidden" id="notificationUnreadBadge">0</span>
           </button>
+          <button class="header-action-btn" id="btnShowMembers" title="Friends" aria-label="Friends" type="button">
+            <svg viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/></svg>
+            <span class="header-action-badge hidden" id="friendsPendingBadge">0</span>
+          </button>
+        </div>
+      </div>
+      <div class="notification-center hidden" id="notificationCenter" role="dialog" aria-label="Notifications panel" aria-modal="false">
+        <div class="notification-center-header">
+          <strong>Notifications</strong>
+          <div class="notification-center-header-actions">
+            <button class="notification-center-btn" id="btnClearNotifications" type="button">Clear</button>
+            <button class="notification-center-btn" id="btnCloseNotifications" type="button" aria-label="Close notifications">×</button>
+          </div>
+        </div>
+        <div class="notification-center-list" id="notificationCenterList">
+          <div class="notification-center-empty">No notifications yet</div>
         </div>
       </div>
       
@@ -266,7 +283,7 @@
           
           <!-- Disconnect -->
           <button class="control-disconnect" id="btnDisconnect" title="Disconnect">
-            <svg viewBox="0 0 256 256"><path d="M236.44,107.31l-25.17,25.17a8,8,0,0,1-11.31,0L174.83,107.4A32.12,32.12,0,0,0,152,96H104a32.12,32.12,0,0,0-22.83,11.4L56.05,132.48a8,8,0,0,1-11.31,0L19.57,107.31a8,8,0,0,1,0-11.32,128,128,0,0,1,181,0l35.88,35.88A8,8,0,0,1,236.44,107.31Z" transform="rotate(45, 128, 128)"/></svg>
+            <svg viewBox="0 0 256 256"><path d="M231.88,175.08A56.26,56.26,0,0,1,176,224C96.6,224,32,159.4,32,80A56.26,56.26,0,0,1,80.92,24.12a16,16,0,0,1,16.62,9.52l21.12,47.15,0,.12A16,16,0,0,1,117.39,96c-.18.27-.37.52-.57.77L96,121.45c7.49,15.22,23.41,31,38.83,38.51l24.34-20.71a8.12,8.12,0,0,1,.75-.56,16,16,0,0,1,15.17-1.4l.13.06,47.11,21.11A16,16,0,0,1,231.88,175.08Z"/></svg>
           </button>
         </div>
 
@@ -352,8 +369,8 @@
         <!-- Friends header with tabs -->
         <div class="friends-header">
           <div class="friends-tabs">
-            <button class="friends-tab active" data-tab="online">Online</button>
-            <button class="friends-tab" data-tab="all">All</button>
+            <button class="friends-tab" data-tab="online">Online</button>
+            <button class="friends-tab active" data-tab="all">All</button>
             <button class="friends-tab" data-tab="pending">Pending</button>
           </div>
           <button class="add-friend-btn" id="btnAddFriend">
