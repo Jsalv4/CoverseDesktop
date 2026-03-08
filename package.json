@@ -93,7 +93,9 @@
         }
       ],
       "artifactName": "Coverse-${version}-${arch}.${ext}",
-      "category": "public.app-category.music"
+      "category": "public.app-category.music",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "nsis": {
       "oneClick": false,

@@ -42,16 +42,52 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Validate Windows signing secrets
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          if (-not $env:WIN_CSC_LINK) {
+            throw 'Missing required secret WIN_CSC_LINK (base64/PFX link).'
+          }
+          if (-not $env:WIN_CSC_KEY_PASSWORD) {
+            throw 'Missing required secret WIN_CSC_KEY_PASSWORD.'
+          }
+
+      - name: Validate mac signing/notarization secrets
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in MAC_CSC_LINK MAC_CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required secret: $name" >&2
+              exit 1
+            fi
+          done
+
       - name: Build and publish Windows assets
         if: runner.os == 'Windows'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run release:win -- --config.win.signAndEditExecutable=false
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: npm run release:win
 
       - name: Build and publish macOS assets
         if: runner.os == 'macOS'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run release:mac -- --config.mac.identity=null
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run release:mac

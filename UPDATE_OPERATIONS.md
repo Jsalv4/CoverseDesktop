@@ -1,4 +1,4 @@
-# Coverse Auto-Update Operations (Windows)
+# Coverse Auto-Update Operations (Windows + macOS)
 
 This document is the production SOP for shipping app updates to users globally.
 
@@ -13,33 +13,50 @@ This document is the production SOP for shipping app updates to users globally.
 
 ## 2) Required files in update feed
 
-For each release, upload all generated files from `dist/` that match the version:
+For each release, publish all generated files for both platforms that match the version:
 
 - `latest.yml`
 - `Coverse Setup X.Y.Z.exe`
 - `Coverse Setup X.Y.Z.exe.blockmap`
+- `latest-mac.yml`
+- `Coverse-X.Y.Z-arm64.dmg` / `Coverse-X.Y.Z-x64.dmg`
+- `Coverse-X.Y.Z-arm64.zip` / `Coverse-X.Y.Z-x64.zip`
+- corresponding `.blockmap` files
 
 Do not rename files after build.
 
-## 3) Build command (current stable)
+## 3) Release workflow (current stable)
 
-```powershell
-$env:CSC_IDENTITY_AUTO_DISCOVERY='false'
-npm run build:win -- --config.win.signAndEditExecutable=false
-```
+Tag-based GitHub Actions workflow (`.github/workflows/release-win.yml`) builds and publishes both OS targets.
+
+Signing/notarization secrets required for tag releases:
+
+- Windows:
+   - `WIN_CSC_LINK`
+   - `WIN_CSC_KEY_PASSWORD`
+- macOS:
+   - `MAC_CSC_LINK`
+   - `MAC_CSC_KEY_PASSWORD`
+   - `APPLE_ID`
+   - `APPLE_APP_SPECIFIC_PASSWORD`
+   - `APPLE_TEAM_ID`
 
 ## 4) Release process (every update)
 
 1. Bump app version in `package.json`.
-2. Build with command above.
-3. Upload new artifacts to `https://updates.coversehq.com/coverse/win/`.
-4. Verify `latest.yml` points to the same version and file names you uploaded.
-5. Launch old app version on test machine and run update check.
+2. Commit and push.
+3. Create/push matching tag: `vX.Y.Z`.
+4. Wait for GitHub Actions release workflow to complete.
+5. Verify release assets include both Windows and macOS metadata/artifacts.
+6. Launch old app version on test machine and run update check.
 
 ## 5) Verification checklist
 
 - `latest.yml` opens in browser at:
   - `https://updates.coversehq.com/coverse/win/latest.yml`
+- GitHub release contains:
+   - `latest.yml` (Windows)
+   - `latest-mac.yml` (macOS)
 - Installer URL from `latest.yml` is downloadable.
 - App shows update prompt on startup or manual check.
 - Update downloads and restart/install succeeds.
@@ -68,7 +85,9 @@ Users checking updates afterward will stay or move to that stable release.
 - Keep TLS enabled everywhere for update feed.
 - Restrict write access to update storage (least privilege).
 - Keep release artifacts immutable once published.
-- Prefer code signing certificates for production trust at scale.
+- Use valid code signing certs for all production installers.
+- Ensure mac artifacts are notarized and stapled by CI before release.
+- EV Windows certs reduce SmartScreen warning rates faster.
 
 ## 9) Manual check path for testers
 

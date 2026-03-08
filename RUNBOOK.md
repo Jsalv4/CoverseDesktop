@@ -235,12 +235,35 @@ Changes to `openSiteWindow()` in main.js affect how CoverseHQ loads. Key setting
 # Development
 npm start
 
-# Build for Windows
-$env:CSC_IDENTITY_AUTO_DISCOVERY='false'
-npm run build:win -- --config.win.signAndEditExecutable=false
+# Build for Windows (signed if CSC_LINK/CSC_KEY_PASSWORD are set)
+npm run build:win
+
+# Build for macOS (signed/notarized when Apple + cert env vars are set)
+npm run build:mac
 
 # Output in dist/
 ```
+
+### Trusted installer setup (reduces download/open warnings)
+
+For tag releases (`v*`) the GitHub Actions workflow now requires signing credentials:
+
+- Windows signing secrets:
+  - `WIN_CSC_LINK`
+  - `WIN_CSC_KEY_PASSWORD`
+- macOS signing + notarization secrets:
+  - `MAC_CSC_LINK`
+  - `MAC_CSC_KEY_PASSWORD`
+  - `APPLE_ID`
+  - `APPLE_APP_SPECIFIC_PASSWORD`
+  - `APPLE_TEAM_ID`
+
+Without these secrets, release jobs intentionally fail so unsigned artifacts are not published by mistake.
+
+Notes:
+- macOS notarization is the key step to avoid Gatekeeper "unidentified developer" blocks.
+- Windows SmartScreen warnings may still appear briefly on newly signed binaries until reputation builds.
+- EV code signing certs reduce SmartScreen friction faster than standard OV certs.
 
 ### In-App Auto-Update (Prompt + Restart)
 
