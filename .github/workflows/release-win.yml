@@ -1,4 +1,4 @@
-name: Release Windows
+name: Release Desktop
 
 on:
   push:
@@ -10,7 +10,12 @@ permissions:
 
 jobs:
   release:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -37,8 +42,16 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build and publish release assets
+      - name: Build and publish Windows assets
+        if: runner.os == 'Windows'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: npm run release:win -- --config.win.signAndEditExecutable=false
+
+      - name: Build and publish macOS assets
+        if: runner.os == 'macOS'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run release:mac -- --config.mac.identity=null

@@ -1,6 +1,6 @@
 {
   "name": "coverse",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Coverse - Music Collaboration App",
   "main": "main.js",
   "scripts": {
@@ -10,7 +10,9 @@
     "dev:web": "http-server -p 8080 .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
     "release:win": "electron-builder --win --publish always",
+    "release:mac": "electron-builder --mac --publish always",
     "clean:tmp": "node scripts/clean-temp-data.js",
     "verify:update": "node scripts/verify-update.js",
     "test:update": "node --test tests/update-manager.test.js tests/update-ipc-shape.test.js tests/home-feed-utils.test.js",
@@ -72,6 +74,26 @@
       "target": "nsis",
       "icon": "assets/icon.png",
       "artifactName": "Coverse-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "Coverse-${version}-${arch}.${ext}",
+      "category": "public.app-category.music"
     },
     "nsis": {
       "oneClick": false,
