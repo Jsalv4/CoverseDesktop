@@ -75,7 +75,7 @@ jobs:
             echo "macOS signing/notarization is enabled."
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "macOS signing/notarization secrets are missing. macOS publish will be skipped."
+            echo "macOS signing/notarization secrets are missing. Falling back to unsigned macOS publish."
           fi
 
       - name: Build and publish Windows assets (signed)
@@ -107,12 +107,15 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run release:mac
 
-      - name: Skip macOS publish (signing secrets missing)
+      - name: Build and publish macOS assets (unsigned)
         if: runner.os == 'macOS' && steps.mac_signing.outputs.enabled != 'true'
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
-          echo "Skipping macOS publish: signing/notarization secrets are not configured."
-          echo "To enable signed macOS releases, set MAC_CSC_LINK, MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID."
+          echo "Signing secrets not configured. Publishing unsigned macOS assets."
+          npm run release:mac
 
       - name: Verify macOS Gatekeeper acceptance
         if: runner.os == 'macOS' && steps.mac_signing.outputs.enabled == 'true'
