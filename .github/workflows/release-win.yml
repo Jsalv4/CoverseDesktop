@@ -42,22 +42,25 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Validate Windows signing secrets
+      - name: Detect Windows signing configuration
         if: runner.os == 'Windows'
+        id: windows_signing
         shell: pwsh
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: |
-          if (-not $env:WIN_CSC_LINK) {
-            throw 'Missing required secret WIN_CSC_LINK (base64/PFX link).'
-          }
-          if (-not $env:WIN_CSC_KEY_PASSWORD) {
-            throw 'Missing required secret WIN_CSC_KEY_PASSWORD.'
+          if ($env:WIN_CSC_LINK -and $env:WIN_CSC_KEY_PASSWORD) {
+            "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host 'Windows signing is enabled.'
+          } else {
+            "enabled=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host 'Windows signing secrets are missing. Falling back to unsigned build.'
           }
 
-      - name: Validate mac signing/notarization secrets
+      - name: Detect macOS signing/notarization configuration
         if: runner.os == 'macOS'
+        id: mac_signing
         shell: bash
         env:
           MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -66,23 +69,35 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          for name in MAC_CSC_LINK MAC_CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
-            if [ -z "${!name}" ]; then
-              echo "Missing required secret: $name" >&2
-              exit 1
-            fi
-          done
+          set -euo pipefail
+          if [ -n "$MAC_CSC_LINK" ] && [ -n "$MAC_CSC_KEY_PASSWORD" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "macOS signing/notarization is enabled."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "macOS signing/notarization secrets are missing. macOS publish will be skipped."
+          fi
 
-      - name: Build and publish Windows assets
-        if: runner.os == 'Windows'
+      - name: Build and publish Windows assets (signed)
+        if: runner.os == 'Windows' && steps.windows_signing.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npm run release:win
 
-      - name: Build and publish macOS assets
-        if: runner.os == 'macOS'
+      - name: Build and publish Windows assets (unsigned)
+        if: runner.os == 'Windows' && steps.windows_signing.outputs.enabled != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          Write-Host 'Windows signing secrets are not configured. Publishing unsigned Windows assets.'
+          npm run release:win
+
+      - name: Build and publish macOS assets (signed)
+        if: runner.os == 'macOS' && steps.mac_signing.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -92,8 +107,15 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run release:mac
 
+      - name: Skip macOS publish (signing secrets missing)
+        if: runner.os == 'macOS' && steps.mac_signing.outputs.enabled != 'true'
+        shell: bash
+        run: |
+          echo "Skipping macOS publish: signing/notarization secrets are not configured."
+          echo "To enable signed macOS releases, set MAC_CSC_LINK, MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID."
+
       - name: Verify macOS Gatekeeper acceptance
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.mac_signing.outputs.enabled == 'true'
         shell: bash
         run: |
           set -euo pipefail
