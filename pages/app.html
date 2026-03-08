@@ -1028,9 +1028,17 @@
         <svg viewBox="0 0 256 256"><path d="M56,56a8,8,0,0,1,12.12-6.86L176,116.57V56a8,8,0,0,1,16,0V200a8,8,0,0,1-16,0V139.43L68.12,206.86A8,8,0,0,1,56,200Z"/></svg>
       </button>
     </div>
-    <button class="global-player-close" id="globalPlayerClose" title="Close Player">
-      <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
-    </button>
+    <div class="global-player-actions">
+      <button class="global-player-minimize" id="globalPlayerMinimize" title="Minimize Player">
+        <svg viewBox="0 0 256 256"><path d="M216,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16H208A8,8,0,0,1,216,128Z"/></svg>
+      </button>
+      <button class="global-player-restore hidden" id="globalPlayerRestore" title="Restore Player">
+        <svg viewBox="0 0 256 256"><path d="M181.66,133.66a8,8,0,0,1-11.32,0L128,91.31,85.66,133.66a8,8,0,0,1-11.32-11.32l48-48a8,8,0,0,1,11.32,0l48,48A8,8,0,0,1,181.66,133.66Z"/></svg>
+      </button>
+      <button class="global-player-close" id="globalPlayerClose" title="Close Player">
+        <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+      </button>
+    </div>
     <audio id="globalPlayerAudio" preload="metadata"></audio>
   </div>
   
@@ -1038,7 +1046,7 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
     import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, onSnapshot, addDoc } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, collection, query, where, getDocs, onSnapshot, addDoc } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
     import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
 
     // Firebase configuration (same as login.html)
@@ -1066,6 +1074,7 @@
     window.firebaseGetDoc = getDoc;
     window.firebaseSetDoc = setDoc;
     window.firebaseUpdateDoc = updateDoc;
+    window.firebaseDeleteDoc = deleteDoc;
     window.firebaseArrayUnion = arrayUnion;
     window.firebaseAddDoc = addDoc;
     window.firebaseCollection = collection;

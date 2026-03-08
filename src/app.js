@@ -8605,6 +8605,7 @@ let playerCurrentFileId = null;
 let playerCurrentItem = null;
 let globalPlayerWaveform = null;
 let globalPlayerWaveformSource = '';
+let isGlobalPlayerMinimized = false;
 let includeProfileUploadsInLibrary = false;
 const pendingThumbnailHydration = new Set();
 let libraryStatusTimer = null;
@@ -10862,6 +10863,18 @@ async function playProfilePostInBottomPlayer(profilePostId = '', preferredSource
   await playQueueIndex(nextIndex);
 }
 
+function setGlobalPlayerMinimized(minimized) {
+  const player = document.getElementById('globalPlayer');
+  const btnMinimize = document.getElementById('globalPlayerMinimize');
+  const btnRestore = document.getElementById('globalPlayerRestore');
+  if (!player || !btnMinimize || !btnRestore) return;
+
+  isGlobalPlayerMinimized = Boolean(minimized);
+  player.classList.toggle('minimized', isGlobalPlayerMinimized);
+  btnMinimize.classList.toggle('hidden', isGlobalPlayerMinimized);
+  btnRestore.classList.toggle('hidden', !isGlobalPlayerMinimized);
+}
+
 function updateGlobalPlayerUi(file, isPlaying) {
   const player = document.getElementById('globalPlayer');
   const title = document.getElementById('globalPlayerTitle');
@@ -10871,12 +10884,14 @@ function updateGlobalPlayerUi(file, isPlaying) {
 
   if (!file) {
     player.classList.add('hidden');
+    setGlobalPlayerMinimized(false);
     title.textContent = 'No track selected';
     meta.textContent = 'Select a sample or song to play';
     return;
   }
 
   player.classList.remove('hidden');
+  setGlobalPlayerMinimized(isGlobalPlayerMinimized);
   title.textContent = file.name || 'Untitled';
   meta.textContent = `${getSectionLabel(file.section || 'local')} · ${getFileTypeLabel(file)}`;
   toggle.classList.toggle('global-player-btn--primary', !isPlaying);
@@ -10984,10 +10999,21 @@ function initGlobalPlayer() {
   const btnToggle = document.getElementById('globalPlayerToggle');
   const btnPrev = document.getElementById('globalPlayerPrev');
   const btnNext = document.getElementById('globalPlayerNext');
+  const btnMinimize = document.getElementById('globalPlayerMinimize');
+  const btnRestore = document.getElementById('globalPlayerRestore');
   const btnClose = document.getElementById('globalPlayerClose');
-  if (!audio || !btnToggle || !btnPrev || !btnNext || !btnClose) return;
+  if (!audio || !btnToggle || !btnPrev || !btnNext || !btnMinimize || !btnRestore || !btnClose) return;
 
   ensureGlobalPlayerWaveform(audio, '');
+  setGlobalPlayerMinimized(false);
+
+  btnMinimize.addEventListener('click', () => {
+    setGlobalPlayerMinimized(true);
+  });
+
+  btnRestore.addEventListener('click', () => {
+    setGlobalPlayerMinimized(false);
+  });
 
   btnToggle.addEventListener('click', async () => {
     if (!audio.src && playerCurrentIndex >= 0) {
@@ -11026,6 +11052,7 @@ function initGlobalPlayer() {
     playerCurrentItem = null;
     playerCurrentIndex = -1;
     playerQueue = [];
+    setGlobalPlayerMinimized(false);
     audio.pause();
     audio.src = '';
     globalPlayerWaveformSource = '';
@@ -11528,6 +11555,10 @@ function renderSessionBar() {
     icon.title = session.name;
     icon.innerHTML = `<span>${session.icon}</span>`;
     icon.addEventListener('click', () => selectSession(session.id));
+    icon.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showSessionContextMenu(session.id, e.clientX, e.clientY);
+    });
     
     sessionBar.insertBefore(icon, addBtn.previousElementSibling);
   });
@@ -11537,6 +11568,158 @@ function renderSessionBar() {
       icon.classList.toggle('active', icon.dataset.session === currentSession.id);
     });
   }
+}
+
+function showSessionContextMenu(sessionId, x, y) {
+  // Remove existing context menu if any
+  const existingMenu = document.querySelector('.session-context-menu');
+  if (existingMenu) {
+    existingMenu.remove();
+  }
+  
+  const session = sessions.find(s => s.id === sessionId);
+  if (!session) return;
+  
+  const menu = document.createElement('div');
+  menu.className = 'session-context-menu';
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.innerHTML = `
+    <div class="session-context-menu-item" data-action="leave">
+      <svg viewBox="0 0 256 256"><path d="M120,216a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H56V208h56A8,8,0,0,1,120,216Zm109.66-93.66-40-40a8,8,0,0,0-11.32,11.32L204.69,120H112a8,8,0,0,0,0,16h92.69l-26.35,26.34a8,8,0,0,0,11.32,11.32l40-40A8,8,0,0,0,229.66,122.34Z"/></svg>
+      <span>Leave Session</span>
+    </div>
+    <div class="session-context-menu-divider"></div>
+    <div class="session-context-menu-item text-danger" data-action="delete">
+      <svg viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>
+      <span>Delete Session</span>
+    </div>
+  `;
+  
+  document.body.appendChild(menu);
+  
+  // Position menu on screen
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    menu.style.left = (window.innerWidth - rect.width - 8) + 'px';
+  }
+  if (rect.bottom > window.innerHeight) {
+    menu.style.top = (window.innerHeight - rect.height - 8) + 'px';
+  }
+  
+  // Add action handlers
+  menu.querySelector('[data-action="leave"]')?.addEventListener('click', () => {
+    menu.remove();
+    leaveSession(sessionId);
+  });
+  
+  menu.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
+    menu.remove();
+    deleteSession(sessionId);
+  });
+  
+  // Close on outside click
+  setTimeout(() => {
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    document.addEventListener('click', closeMenu);
+  }, 0);
+  
+  // Close on ESC
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      menu.remove();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+}
+
+async function deleteSession(sessionId) {
+  const session = sessions.find(s => s.id === sessionId);
+  if (!session) return;
+  
+  const confirmed = confirm(`Delete "${session.name}"?\n\nThis will permanently delete the session and all its data.`);
+  if (!confirmed) return;
+  
+  // Delete from Firebase if user is logged in
+  if (currentUser && window.firebaseDb) {
+    try {
+      const db = window.firebaseDb;
+      const sessionRef = window.firebaseDoc(db, 'sessions', sessionId);
+      await window.firebaseDeleteDoc(sessionRef);
+    } catch (error) {
+      console.error('[Coverse] Failed to delete session from cloud:', error);
+    }
+  }
+  
+  // Remove from local array
+  const index = sessions.findIndex(s => s.id === sessionId);
+  if (index !== -1) {
+    sessions.splice(index, 1);
+  }
+  
+  // Save to storage
+  saveSessionsToStorage();
+  
+  // If we were viewing this session, go back to home
+  if (currentSession && currentSession.id === sessionId) {
+    currentSession = null;
+    showHomeView();
+  }
+  
+  // Re-render session bar
+  renderSessionBar();
+  
+  showNotification(`Deleted "${session.name}"`, { level: 'info' });
+}
+
+async function leaveSession(sessionId) {
+  const session = sessions.find(s => s.id === sessionId);
+  if (!session) return;
+  
+  const confirmed = confirm(`Leave "${session.name}"?\n\nYou can rejoin later with the invite code.`);
+  if (!confirmed) return;
+  
+  // Remove from Firebase memberIds if user is logged in
+  if (currentUser && window.firebaseDb) {
+    try {
+      const db = window.firebaseDb;
+      const sessionRef = window.firebaseDoc(db, 'sessions', sessionId);
+      const sessionSnap = await window.firebaseGetDoc(sessionRef);
+      if (sessionSnap.exists()) {
+        const data = sessionSnap.data();
+        const memberIds = (data.memberIds || []).filter(uid => uid !== currentUser.uid);
+        await window.firebaseUpdateDoc(sessionRef, { memberIds });
+      }
+    } catch (error) {
+      console.error('[Coverse] Failed to leave session in cloud:', error);
+    }
+  }
+  
+  // Remove from local array
+  const index = sessions.findIndex(s => s.id === sessionId);
+  if (index !== -1) {
+    sessions.splice(index, 1);
+  }
+  
+  // Save to storage
+  saveSessionsToStorage();
+  
+  // If we were viewing this session, go back to home
+  if (currentSession && currentSession.id === sessionId) {
+    currentSession = null;
+    showHomeView();
+  }
+  
+  // Re-render session bar
+  renderSessionBar();
+  
+  showNotification(`Left "${session.name}"`, { level: 'info' });
 }
 
 function openSettingsMenu() {

@@ -48,6 +48,10 @@
   --site-text-primary: #ffffff;
   --site-text-secondary: #cbd5e1;
   --site-border: #334155;
+
+  --session-bar-width: 72px;
+  --channel-bar-width: 240px;
+  --global-player-gap: 12px;
 }
 
 html, body {
@@ -73,7 +77,7 @@ html, body {
    SESSION SIDEBAR (Server list - 72px)
    ============================================ */
 .session-bar {
-  width: 72px;
+  width: var(--session-bar-width);
   background: var(--bg-tertiary);
   display: flex;
   flex-direction: column;
@@ -235,7 +239,7 @@ html, body {
    CHANNEL SIDEBAR (240px)
    ============================================ */
 .channel-bar {
-  width: 240px;
+  width: var(--channel-bar-width);
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
@@ -697,6 +701,68 @@ html, body {
 
 .settings-dropdown-item.text-danger:hover svg {
   fill: #fff;
+}
+
+/* Session Context Menu */
+.session-context-menu {
+  position: fixed;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  z-index: 2000;
+  min-width: 160px;
+}
+
+.session-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-normal);
+  transition: background 0.1s;
+}
+
+.session-context-menu-item:hover {
+  background: var(--brand-500);
+  color: #fff;
+}
+
+.session-context-menu-item:hover svg {
+  fill: #fff;
+}
+
+.session-context-menu-item svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.session-context-menu-item.text-danger {
+  color: var(--red-400);
+}
+
+.session-context-menu-item.text-danger svg {
+  fill: var(--red-400);
+}
+
+.session-context-menu-item.text-danger:hover {
+  background: var(--red-400);
+  color: #fff;
+}
+
+.session-context-menu-item.text-danger:hover svg {
+  fill: #fff;
+}
+
+.session-context-menu-divider {
+  height: 1px;
+  background: var(--bg-modifier-accent);
+  margin: 4px 0;
 }
 
 .settings-dropdown-divider {
@@ -4348,9 +4414,9 @@ html, body {
 
 .global-player {
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
+  left: calc(var(--session-bar-width) + var(--channel-bar-width) + var(--global-player-gap));
+  right: var(--global-player-gap);
+  bottom: var(--global-player-gap);
   min-height: 76px;
   background: var(--bg-secondary);
   border: 1px solid var(--bg-modifier-selected);
@@ -4407,7 +4473,15 @@ html, body {
   gap: 8px;
 }
 
+.global-player-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .global-player-btn,
+.global-player-minimize,
+.global-player-restore,
 .global-player-close {
   width: 34px;
   height: 34px;
@@ -4427,10 +4501,25 @@ html, body {
 }
 
 .global-player-btn svg,
+.global-player-minimize svg,
+.global-player-restore svg,
 .global-player-close svg {
   width: 17px;
   height: 17px;
   fill: currentColor;
+}
+
+.global-player.minimized {
+  left: auto;
+  right: var(--global-player-gap);
+  min-height: 0;
+  gap: 8px;
+  padding: 8px;
+}
+
+.global-player.minimized .global-player-track,
+.global-player.minimized .global-player-controls {
+  display: none;
 }
 
 .preview-generic {
