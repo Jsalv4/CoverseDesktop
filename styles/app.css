@@ -459,6 +459,8 @@ html, body {
   margin: 1px 8px 1px 0;
   border-radius: 4px;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
 .voice-user:hover {
@@ -506,11 +508,15 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  position: relative;
+  z-index: 1;
 }
 
 .voice-user-icons {
   display: flex;
   gap: 4px;
+  position: relative;
+  z-index: 1;
 }
 
 .voice-user-icons svg {
@@ -521,6 +527,29 @@ html, body {
 
 .voice-user-icons svg.muted {
   fill: var(--red-400);
+}
+
+.voice-user-level {
+  position: absolute;
+  left: 34px;
+  right: 8px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.28);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.voice-user-level-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  transform: scaleX(0.04);
+  border-radius: inherit;
+  background: linear-gradient(90deg, #34d399 0%, #22c55e 100%);
+  transition: transform 80ms linear;
 }
 
 /* Voice channel timer */
@@ -1230,6 +1259,57 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.participant-tile-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.participant-popout-btn {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.72);
+  cursor: pointer;
+  padding: 0;
+}
+
+.participant-popout-btn:hover {
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.participant-popout-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: #f8fafc;
+}
+
+.participant-audio-level {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.36);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.participant-audio-level-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  transform: scaleX(0.04);
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22c55e 0%, #10b981 100%);
+  transition: transform 80ms linear;
 }
 
 .participant-tile-name {
