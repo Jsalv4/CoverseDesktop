@@ -39,7 +39,9 @@
         <h2 id="currentSessionName">Coverse</h2>
         <div class="session-header-actions">
           <button class="session-invite-btn hidden" id="btnCopySessionInvite" title="Open Session Invite">Invite</button>
-          <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+          <button class="session-menu-btn hidden" id="btnSessionMenu" type="button" title="Session options" aria-label="Session options">
+            <svg viewBox="0 0 256 256"><path d="M128,136a8,8,0,1,0-8-8A8,8,0,0,0,128,136Zm0-40a8,8,0,1,0-8-8A8,8,0,0,0,128,96Zm0,80a8,8,0,1,0-8-8A8,8,0,0,0,128,176Z"/></svg>
+          </button>
         </div>
       </div>
       
@@ -95,54 +97,39 @@
       
       <!-- Channel list (shown when a session is selected) -->
       <div class="channel-list hidden" id="channelList">
-        <!-- Events/Info -->
-        <div class="channel-item" data-channel="events" data-type="info">
+        <!-- Session board/info -->
+        <div class="channel-item" data-channel="board" data-type="info">
           <svg viewBox="0 0 256 256"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Z"/></svg>
-          <span class="channel-name">Events</span>
+          <span class="channel-name">Session Board</span>
         </div>
         
-        <!-- Text Channels category -->
+        <!-- Conversation channels category -->
         <div class="channel-category" data-category="text">
           <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
-          <span class="category-name">Text Channels</span>
+          <span class="category-name">Conversations</span>
           <div class="category-actions">
-            <svg viewBox="0 0 256 256" title="Create Channel"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+            <button class="category-add-btn" data-channel-type="text" type="button" title="Add conversation">
+              <svg viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+            </button>
           </div>
         </div>
+        <div id="textChannelsContainer"></div>
         
-        <div class="channel-item" data-channel="general" data-type="text">
-          <svg viewBox="0 0 256 256"><path d="M224,88H175.4l8.47-46.57a8,8,0,0,0-15.74-2.86l-9,49.43H111.4l8.47-46.57a8,8,0,0,0-15.74-2.86L95.14,88H48a8,8,0,0,0,0,16H92.23L81.14,168H32a8,8,0,0,0,0,16H78.23l-8.47,46.57a8,8,0,0,0,6.44,9.3A7.79,7.79,0,0,0,77.63,240a8,8,0,0,0,7.87-6.57l9-49.43h47.72l-8.47,46.57a8,8,0,0,0,6.44,9.3,7.79,7.79,0,0,0,1.43.13,8,8,0,0,0,7.87-6.57l9-49.43H208a8,8,0,0,0,0-16H161.77l11.09-64H224a8,8,0,0,0,0-16Zm-76.49,80H99.77l11.09-64h47.72Z"/></svg>
-          <span class="channel-name">general</span>
-        </div>
-        
-        <div class="channel-item" data-channel="files" data-type="text">
-          <svg viewBox="0 0 256 256"><path d="M224,88H175.4l8.47-46.57a8,8,0,0,0-15.74-2.86l-9,49.43H111.4l8.47-46.57a8,8,0,0,0-15.74-2.86L95.14,88H48a8,8,0,0,0,0,16H92.23L81.14,168H32a8,8,0,0,0,0,16H78.23l-8.47,46.57a8,8,0,0,0,6.44,9.3A7.79,7.79,0,0,0,77.63,240a8,8,0,0,0,7.87-6.57l9-49.43h47.72l-8.47,46.57a8,8,0,0,0,6.44,9.3,7.79,7.79,0,0,0,1.43.13,8,8,0,0,0,7.87-6.57l9-49.43H208a8,8,0,0,0,0-16H161.77l11.09-64H224a8,8,0,0,0,0-16Zm-76.49,80H99.77l11.09-64h47.72Z"/></svg>
-          <span class="channel-name">files</span>
-        </div>
-        
-        <!-- Voice Channels category -->
+        <!-- Live room category -->
         <div class="channel-category" data-category="voice">
           <svg viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>
-          <span class="category-name">Voice Channels</span>
+          <span class="category-name">Live Rooms</span>
           <div class="category-actions">
-            <svg viewBox="0 0 256 256" title="Create Channel"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+            <button class="category-add-btn" data-channel-type="voice" type="button" title="Add live room">
+              <svg viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
+            </button>
           </div>
         </div>
-        
-        <div class="channel-item active" data-channel="main" data-type="voice">
-          <svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
-          <span class="channel-name">Main</span>
-          <span class="voice-timer" id="voiceTimer"></span>
-        </div>
-        
-        <!-- Voice users in Main channel -->
+        <div id="voiceChannelsContainer"></div>
+
+        <!-- Voice users in selected room -->
         <div class="voice-users" id="voiceUsersMain">
           <!-- Users will be added dynamically -->
-        </div>
-        
-        <div class="channel-item" data-channel="studio" data-type="voice">
-          <svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
-          <span class="channel-name">Studio</span>
         </div>
       </div>
       
@@ -212,7 +199,7 @@
       <div class="voice-preview" id="voicePreview">
         <div class="voice-preview-card">
           <div class="preview-avatar">
-            <svg viewBox="0 0 256 256" width="32" height="32" fill="#5865f2"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+            <svg viewBox="0 0 256 256" width="32" height="32" fill="#34d399"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
           </div>
         </div>
         <h2 id="voicePreviewTitle">Main</h2>
@@ -229,6 +216,16 @@
           <div class="call-stage-placeholder" id="stagePlaceholder">
             <svg viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Z"/></svg>
             <span>No one is sharing their screen</span>
+          </div>
+          <button class="stage-stop-share hidden" id="btnStageStopShare" type="button">Stop Sharing</button>
+          <div class="stage-controls hidden" id="stageControls">
+            <div class="stage-volume-control hidden" id="stageVolumeControl">
+              <svg class="volume-icon" viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+              <input type="range" class="stage-volume-slider" id="stageVolumeSlider" min="0" max="100" value="100" title="Adjust volume">
+            </div>
+            <button class="stage-popout-btn" id="btnStagePopout" type="button" title="Pop out">
+              <svg viewBox="0 0 256 256"><path d="M216,48H152a8,8,0,0,0,0,16h44.69L136,124.69,107.31,96,72,131.31a8,8,0,0,0,11.31,11.38L107.31,118.7,136,147.31,208,75.31V120a8,8,0,0,0,16,0V56A8,8,0,0,0,216,48ZM208,208H48V48h56a8,8,0,0,0,0-16H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152a8,8,0,0,0-16,0Z"/></svg>
+            </button>
           </div>
           <div class="stage-label" id="stageLabel">
             <svg viewBox="0 0 256 256"><path d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Z"/></svg>
@@ -294,26 +291,6 @@
       <div class="chat-view" id="chatView">
         <div class="chat-messages" id="chatMessages">
           <!-- Messages rendered dynamically -->
-          <div class="chat-message">
-            <div class="chat-message-avatar">P</div>
-            <div class="chat-message-content">
-              <div class="chat-message-header">
-                <span class="chat-message-author">Producer Mike</span>
-                <span class="chat-message-time">Today at 3:30 PM</span>
-              </div>
-              <div class="chat-message-text">Hey team! I've uploaded the latest mix for review. Check the files channel.</div>
-            </div>
-          </div>
-          <div class="chat-message">
-            <div class="chat-message-avatar">J</div>
-            <div class="chat-message-content">
-              <div class="chat-message-header">
-                <span class="chat-message-author">John (Drums)</span>
-                <span class="chat-message-time">Today at 3:45 PM</span>
-              </div>
-              <div class="chat-message-text">Sounds great! The drums are punchy now 🔥</div>
-            </div>
-          </div>
         </div>
         
         <div class="chat-input-container">
@@ -321,7 +298,7 @@
             <button class="chat-input-btn" id="btnAttachFile" title="Attach File">
               <svg viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></svg>
             </button>
-            <input type="text" class="chat-input" id="chatInput" placeholder="Message #general">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Message in general">
             <button class="chat-input-btn" id="btnEmoji" title="Emoji">
               <svg viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216ZM80,108a12,12,0,1,1,12,12A12,12,0,0,1,80,108Zm96,0a12,12,0,1,1-12-12A12,12,0,0,1,176,108Zm-1.08,64a56,56,0,0,1-93.84,0,8,8,0,1,1,13.42-8.7,40,40,0,0,0,67,0,8,8,0,0,1,13.42,8.7Z"/></svg>
             </button>
@@ -722,6 +699,19 @@
     </div>
   </div>
 
+  <!-- Members Sidebar Panel -->
+  <div class="members-panel hidden" id="membersPanel">
+    <div class="members-panel-header">
+      <span class="members-panel-title">Members</span>
+      <button class="members-panel-close" id="btnCloseMembersPanel" type="button" aria-label="Close members">
+        <svg viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+      </button>
+    </div>
+    <div class="members-panel-list" id="membersPanelList">
+      <!-- Members rendered dynamically -->
+    </div>
+  </div>
+
   <div class="update-status-widget hidden" id="updateStatusWidget">
     <button class="update-status-close" id="btnCloseUpdateWidget" type="button" aria-label="Close updater">✕</button>
     <div class="update-status-title" id="updateStatusTitle">Updater</div>
@@ -1046,7 +1036,7 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
     import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, collection, query, where, getDocs, onSnapshot, addDoc } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, collection, query, where, getDocs, onSnapshot, addDoc, orderBy, limit, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
     import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
 
     // Firebase configuration (same as login.html)
@@ -1086,6 +1076,9 @@
     window.firebaseUploadBytes = uploadBytes;
     window.firebaseGetDownloadURL = getDownloadURL;
     window.firebaseDeleteObject = deleteObject;
+    window.firebaseOrderBy = orderBy;
+    window.firebaseLimit = limit;
+    window.firebaseServerTimestamp = serverTimestamp;
 
     // Check auth state
     onAuthStateChanged(auth, async (user) => {

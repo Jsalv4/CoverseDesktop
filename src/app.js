@@ -58,6 +58,10 @@ const LIBRARY_BLOB_STORE = 'files';
 const API_BASE_KEY = 'coverse_api_base';
 const DEFAULT_API_BASE = 'https://coversehq.com';
 const MAX_UPLOAD_BYTES = 250 * 1024 * 1024;
+const DEFAULT_TEXT_CHANNELS = ['general', 'files'];
+const DEFAULT_VOICE_CHANNELS = ['Main', 'Studio'];
+const SESSION_BOARD_CHANNEL_ID = 'board';
+const SESSION_BOARD_LABEL = 'Session Board';
 
 const coverseFeedUtils = (typeof window !== 'undefined' && window.CoverseFeedUtils) || {};
 const normalizeFeedType = typeof coverseFeedUtils.normalizeFeedType === 'function'
@@ -1111,31 +1115,68 @@ function mapPurchaseEntryToProfilePost(entry = {}, index = 0) {
   };
 }
 
-function getPurchasePostDedupeKey(item = {}, fallbackIndex = 0) {
-  if (!item || typeof item !== 'object') return `idx:${fallbackIndex}`;
+function normalizeIdentityValue(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
 
-  const postId = String(item.postId || '').trim().toLowerCase();
-  if (postId) return `post:${postId}`;
+function buildPurchaseIdentityTokens(item = {}, fallbackIndex = 0) {
+  if (!item || typeof item !== 'object') return [];
 
-  const purchaseId = String(item.purchaseId || '').trim().toLowerCase();
-  if (purchaseId) return `purchase:${purchaseId}`;
+  const tokens = [];
+  const pushToken = (prefix, rawValue) => {
+    const normalized = normalizeIdentityValue(rawValue);
+    if (!normalized) return;
+    tokens.push(`${prefix}:${normalized}`);
+  };
 
+  const canonicalId = String(item.id || '')
+    .trim()
+    .replace(/^purchase_post_/i, '')
+    .replace(/^site_/i, '');
+  const purchaseId = firstNonEmptyString([item.purchaseId, canonicalId]);
+  const postId = firstNonEmptyString([item.postId, item.siteId, item.sourceId]);
+  const sourceId = firstNonEmptyString([item.sourceId, item.siteId]);
+  const storagePath = String(item.storagePath || item.path || '').trim();
   const mediaUrl = normalizeProfileMediaUrl(item.downloadURL || item.audioUrl || item.mediaUrl || item.fileUrl || item.url || '');
-  if (mediaUrl) return `media:${mediaUrl.toLowerCase()}`;
+  const title = firstMeaningfulPurchaseTitle([item.itemTitle, item.title, item.name, item.postTitle]);
+  const amount = preferredPurchaseAmount(item.pricePaid, item.price, item.amount);
 
-  const sourceIds = firstNonEmptyString([item.sourceId, item.siteId]).toLowerCase();
-  if (sourceIds) return `source:${sourceIds}`;
+  pushToken('purchase', purchaseId);
+  pushToken('post', postId);
 
-  const storagePath = String(item.storagePath || '').trim().toLowerCase();
-  if (storagePath) return `storage:${storagePath}`;
+  if (mediaUrl) {
+    const lowerUrl = mediaUrl.toLowerCase();
+    pushToken('media', lowerUrl);
+    const tail = lowerUrl.split('/').pop()?.split('?')[0] || '';
+    pushToken('media-tail', tail);
+    try {
+      const parsed = new URL(mediaUrl);
+      parsed.search = '';
+      parsed.hash = '';
+      pushToken('media-clean', parsed.toString().toLowerCase());
+    } catch (_error) {
+      // Keep best-effort token matching for relative/non-URL media paths.
+    }
+  }
 
-  const title = firstMeaningfulPurchaseTitle([item.title, item.name]).toLowerCase();
-  if (title) return `title:${title}|${Number(item.size || 0)}`;
+  pushToken('source', sourceId);
+  pushToken('storage', storagePath);
 
-  const id = String(item.id || '').trim().toLowerCase();
-  if (id) return `id:${id}`;
+  const normalizedTitle = normalizeIdentityValue(title);
+  if (normalizedTitle) {
+    pushToken('title-price', `${normalizedTitle}|${Number(amount || 0)}`);
+    pushToken('title-size', `${normalizedTitle}|${Number(item.size || 0)}`);
+  }
 
-  return `idx:${fallbackIndex}`;
+  pushToken('id', canonicalId);
+
+  return Array.from(new Set(tokens));
+}
+
+function getPurchasePostDedupeKey(item = {}, fallbackIndex = 0) {
+  const tokens = buildPurchaseIdentityTokens(item, fallbackIndex);
+  if (!tokens.length) return `idx:${fallbackIndex}`;
+  return tokens[0];
 }
 
 function getPurchasePostQualityScore(item = {}) {
@@ -1156,6 +1197,16 @@ function getPurchasePostQualityScore(item = {}) {
 
 function getSimpleProfilePurchasePosts() {
   const merged = new Map();
+  const tokenToKey = new Map();
+  let syntheticKeyCounter = 0;
+
+  const registerTokens = (key, tokens = []) => {
+    if (!key) return;
+    tokens.forEach((token) => {
+      if (!token) return;
+      tokenToKey.set(token, key);
+    });
+  };
 
   const addItem = (item, fallbackIndex = 0) => {
     if (!item || typeof item !== 'object') return;
@@ -1170,30 +1221,38 @@ function getSimpleProfilePurchasePosts() {
       isPurchased: true,
       purchased: true
     };
-    const key = getPurchasePostDedupeKey({ ...item, ...enriched }, fallbackIndex);
-    if (!key) return;
+
+    const identityTokens = buildPurchaseIdentityTokens({ ...item, ...enriched }, fallbackIndex);
+    let key = identityTokens.map((token) => tokenToKey.get(token)).find(Boolean);
+    if (!key) {
+      key = `purchase_${syntheticKeyCounter++}`;
+    }
 
     if (!merged.has(key)) {
       merged.set(key, enriched);
+      registerTokens(key, identityTokens);
+      registerTokens(key, buildPurchaseIdentityTokens(enriched, fallbackIndex));
       return;
     }
 
     const existing = merged.get(key) || {};
     const existingScore = getPurchasePostQualityScore(existing);
     const incomingScore = getPurchasePostQualityScore(enriched);
+    let nextValue = existing;
 
     if (incomingScore > existingScore) {
-      merged.set(key, { ...existing, ...enriched, postType: 'purchase', isPurchased: true, purchased: true });
-      return;
-    }
-
-    if (incomingScore === existingScore) {
+      nextValue = { ...existing, ...enriched, postType: 'purchase', isPurchased: true, purchased: true };
+    } else if (incomingScore === existingScore) {
       const existingTime = getTimestampMs(existing.uploadedAt || existing.createdAt || existing.purchasedAt);
       const incomingTime = getTimestampMs(enriched.uploadedAt || enriched.createdAt || enriched.purchasedAt);
       if (incomingTime > existingTime) {
-        merged.set(key, { ...existing, ...enriched, postType: 'purchase', isPurchased: true, purchased: true });
+        nextValue = { ...existing, ...enriched, postType: 'purchase', isPurchased: true, purchased: true };
       }
     }
+
+    merged.set(key, nextValue);
+    registerTokens(key, identityTokens);
+    registerTokens(key, buildPurchaseIdentityTokens(nextValue, fallbackIndex));
   };
 
   (purchaseSyncEntries || []).forEach((entry, index) => {
@@ -1219,7 +1278,7 @@ function mergePurchasesIntoLibrary(entries = []) {
 
   const byId = new Map((Array.isArray(userLibrary) ? userLibrary : []).map((item) => [item.id, item]));
   entries.forEach((entry, index) => {
-    const purchaseId = String(entry.postId || entry.id || `purchase_${index}`).trim();
+    const purchaseId = String(entry.id || entry.postId || `purchase_${index}`).trim();
     if (!purchaseId) return;
 
     const fileUrl = String(entry.fileUrl || '').trim();
@@ -1260,7 +1319,7 @@ function mergePurchasesIntoLibrary(entries = []) {
     });
   });
 
-  userLibrary = Array.from(byId.values());
+  userLibrary = dedupeLibraryItems(Array.from(byId.values()));
   persistSiteLibraryCacheFromState();
 }
 
@@ -6630,8 +6689,8 @@ async function loadUserSessions() {
           id: 'my-studio',
           name: `${currentUser?.displayName || 'My'} Studio`,
           icon: getInitials(currentUser?.displayName || 'MS'),
-          textChannels: ['general', 'files'],
-          voiceChannels: ['Main', 'Studio']
+          textChannels: DEFAULT_TEXT_CHANNELS.slice(),
+          voiceChannels: DEFAULT_VOICE_CHANNELS.slice()
         }
       ];
       saveSessionsToStorage();
@@ -6657,8 +6716,8 @@ async function loadUserSessions() {
         id: docSnap.id,
         name: data.name || 'Session',
         icon: data.icon || getInitials(data.name || 'S'),
-        textChannels: data.textChannels || ['general', 'files'],
-        voiceChannels: data.voiceChannels || ['Main', 'Studio'],
+        textChannels: data.textChannels || DEFAULT_TEXT_CHANNELS.slice(),
+        voiceChannels: data.voiceChannels || DEFAULT_VOICE_CHANNELS.slice(),
         inviteCode: data.inviteCode || '',
         ownerUid: data.ownerUid || ''
       });
@@ -6688,8 +6747,8 @@ async function loadUserSessions() {
           id: 'my-studio',
           name: `${currentUser.displayName}'s Studio`,
           icon: getInitials(currentUser.displayName || 'MS'),
-          textChannels: ['general', 'files'],
-          voiceChannels: ['Main', 'Studio']
+          textChannels: DEFAULT_TEXT_CHANNELS.slice(),
+          voiceChannels: DEFAULT_VOICE_CHANNELS.slice()
         }
       ];
     }
@@ -6712,10 +6771,11 @@ function saveSessionsToStorage() {
       id: session.id,
       name: session.name,
       icon: session.icon,
-      textChannels: session.textChannels || ['general', 'files'],
-      voiceChannels: session.voiceChannels || ['Main', 'Studio'],
+      textChannels: session.textChannels || DEFAULT_TEXT_CHANNELS.slice(),
+      voiceChannels: session.voiceChannels || DEFAULT_VOICE_CHANNELS.slice(),
       inviteCode: session.inviteCode || '',
-      ownerUid: session.ownerUid || ''
+      ownerUid: session.ownerUid || '',
+      roles: session.roles || {}
     }));
     localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(safeSessions));
   } catch (error) {
@@ -8599,7 +8659,7 @@ function startVoiceCallWith(userId) {
     }
 
     if (!currentChannel || currentChannelType !== 'voice') {
-      selectChannel('main', 'voice');
+      selectChannel(getDefaultVoiceChannelId(currentSession), 'voice');
     }
 
     if (!inVoiceCall) {
@@ -9010,10 +9070,161 @@ function getLibraryProfileUploadItems() {
   });
 }
 
+function getLibraryItemQualityScore(item = {}) {
+  if (!item || typeof item !== 'object') return 0;
+
+  let score = 0;
+  if (normalizeProfileMediaUrl(item.downloadURL || item.fileUrl || item.audioUrl || item.mediaUrl || item.url || '')) score += 8;
+  if (String(item.storagePath || item.path || '').trim()) score += 6;
+  if (String(item.blobUrl || '').trim()) score += 4;
+  if (firstNonEmptyString([item.thumbnailURL, item.thumbnailUrl, item.previewUrl, item.imageUrl, item.coverImageUrl])) score += 3;
+  if (Number(item.size || item.fileSize || 0) > 0) score += 1;
+  if (String(item.mimeType || '').trim()) score += 1;
+  if (String(item.name || item.title || '').trim()) score += 1;
+  if (item.isPurchased || item.purchased || item.purchaseId) score += 2;
+
+  const section = String(item.section || '').toLowerCase();
+  if (section === 'site') score += 2;
+  if (section === 'app-cache') score += 1;
+
+  return score;
+}
+
+function getLibraryItemIdentityTokens(item = {}, fallbackIndex = 0) {
+  if (!item || typeof item !== 'object') return [];
+
+  const tokens = [];
+  const pushToken = (prefix, rawValue) => {
+    const normalized = normalizeIdentityValue(rawValue);
+    if (!normalized) return;
+    tokens.push(`${prefix}:${normalized}`);
+  };
+
+  pushToken('id', item.id);
+  pushToken('site', item.siteId);
+
+  const storagePath = String(item.storagePath || item.path || '').trim();
+  if (storagePath) {
+    pushToken('storage', storagePath);
+    const storageTail = storagePath.split('/').pop() || '';
+    pushToken('storage-tail', storageTail);
+  }
+
+  const mediaUrl = normalizeProfileMediaUrl(item.downloadURL || item.fileUrl || item.audioUrl || item.mediaUrl || item.url || '');
+  if (mediaUrl) {
+    const lowerUrl = mediaUrl.toLowerCase();
+    pushToken('media', lowerUrl);
+    const mediaTail = lowerUrl.split('/').pop()?.split('?')[0] || '';
+    pushToken('media-tail', mediaTail);
+    try {
+      const parsed = new URL(mediaUrl);
+      parsed.search = '';
+      parsed.hash = '';
+      pushToken('media-clean', parsed.toString().toLowerCase());
+    } catch (_error) {
+      // Keep best-effort token matching for relative/non-URL media paths.
+    }
+  }
+
+  const title = firstMeaningfulPurchaseTitle([item.name, item.title, item.itemTitle]);
+  const normalizedTitle = normalizeIdentityValue(title);
+  const size = Number(item.size || item.fileSize || 0);
+  const section = normalizeIdentityValue(item.section || 'local');
+  if (normalizedTitle && size > 0) {
+    pushToken('name-size', `${normalizedTitle}|${size}`);
+    pushToken('name-section-size', `${normalizedTitle}|${section}|${size}`);
+  }
+
+  const purchaseLike = Boolean(
+    item.isPurchased ||
+    item.purchased ||
+    item.purchaseId ||
+    String(item.source || '').toLowerCase().includes('purchase')
+  );
+  if (purchaseLike) {
+    buildPurchaseIdentityTokens(item, fallbackIndex).forEach((token) => {
+      if (token) {
+        tokens.push(`purchase:${token}`);
+      }
+    });
+  }
+
+  if (!tokens.length && Number.isFinite(fallbackIndex)) {
+    pushToken('fallback', `${section || 'local'}|${fallbackIndex}`);
+  }
+
+  return Array.from(new Set(tokens));
+}
+
+function mergeLibraryItems(existing = {}, incoming = {}) {
+  const existingScore = getLibraryItemQualityScore(existing);
+  const incomingScore = getLibraryItemQualityScore(incoming);
+
+  if (incomingScore > existingScore) {
+    return { ...existing, ...incoming };
+  }
+
+  if (existingScore > incomingScore) {
+    return { ...incoming, ...existing };
+  }
+
+  const existingTime = getTimestampMs(existing.uploadedAt || existing.createdAt || existing.purchasedAt);
+  const incomingTime = getTimestampMs(incoming.uploadedAt || incoming.createdAt || incoming.purchasedAt);
+
+  if (incomingTime > existingTime) {
+    return { ...existing, ...incoming };
+  }
+
+  if (existingTime > incomingTime) {
+    return { ...incoming, ...existing };
+  }
+
+  return { ...existing, ...incoming };
+}
+
+function dedupeLibraryItems(items = []) {
+  const merged = new Map();
+  const tokenToKey = new Map();
+  let syntheticKeyCounter = 0;
+
+  const registerTokens = (key, tokens = []) => {
+    if (!key) return;
+    tokens.forEach((token) => {
+      if (!token) return;
+      tokenToKey.set(token, key);
+    });
+  };
+
+  (Array.isArray(items) ? items : []).forEach((item, index) => {
+    if (!item || typeof item !== 'object' || item.isDeleted) return;
+
+    const tokens = getLibraryItemIdentityTokens(item, index);
+    let key = tokens.map((token) => tokenToKey.get(token)).find(Boolean);
+    if (!key) {
+      key = `library_${syntheticKeyCounter++}`;
+    }
+
+    if (!merged.has(key)) {
+      merged.set(key, item);
+      registerTokens(key, tokens);
+      registerTokens(key, getLibraryItemIdentityTokens(item, index));
+      return;
+    }
+
+    const existing = merged.get(key) || {};
+    const nextItem = mergeLibraryItems(existing, item);
+    merged.set(key, nextItem);
+    registerTokens(key, tokens);
+    registerTokens(key, getLibraryItemIdentityTokens(nextItem, index));
+  });
+
+  return Array.from(merged.values());
+}
+
 function getRenderableLibraryItems() {
-  const baseItems = [...userLibrary];
+  const baseItems = dedupeLibraryItems(Array.isArray(userLibrary) ? userLibrary : []);
   if (includeProfileUploadsInLibrary && currentLibraryTab === 'all') {
-    return baseItems.concat(getLibraryProfileUploadItems());
+    return dedupeLibraryItems(baseItems.concat(getLibraryProfileUploadItems()));
   }
   return baseItems;
 }
@@ -9059,8 +9270,8 @@ function buildLibraryQueueCandidates() {
 }
 
 function getLibraryPurchaseTabItems() {
-  const merged = new Map();
   const purchasePosts = getSimpleProfilePurchasePosts();
+  const items = [];
 
   purchasePosts.forEach((post, index) => {
     if (!post || typeof post !== 'object') return;
@@ -9076,39 +9287,10 @@ function getLibraryPurchaseTabItems() {
       purchaseId: firstNonEmptyString([post.purchaseId, post.postId, post.id]),
       uploadedAt: post.uploadedAt || post.createdAt || post.purchasedAt || previewItem.uploadedAt
     };
-
-    const key = String(
-      normalized.postId ||
-      normalized.purchaseId ||
-      normalized.id ||
-      normalized.siteId ||
-      normalized.storagePath ||
-      normalized.downloadURL ||
-      `purchase_${index}`
-    ).trim().toLowerCase();
-    if (!key) return;
-
-    if (!merged.has(key)) {
-      merged.set(key, normalized);
-      return;
-    }
-
-    const existing = merged.get(key) || {};
-    const existingHasSource = Boolean(existing.downloadURL || existing.storagePath);
-    const incomingHasSource = Boolean(normalized.downloadURL || normalized.storagePath);
-    if (!existingHasSource && incomingHasSource) {
-      merged.set(key, { ...existing, ...normalized });
-      return;
-    }
-
-    const existingTime = getTimestampMs(existing.uploadedAt || existing.createdAt || existing.purchasedAt);
-    const incomingTime = getTimestampMs(normalized.uploadedAt || normalized.createdAt || normalized.purchasedAt);
-    if (incomingTime > existingTime) {
-      merged.set(key, { ...existing, ...normalized });
-    }
+    items.push(normalized);
   });
 
-  return Array.from(merged.values())
+  return dedupeLibraryItems(items)
     .sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0));
 }
 
@@ -9527,6 +9709,7 @@ function loadLibraryFromStorage() {
     if (saved) {
       userLibrary = JSON.parse(saved);
       userLibrary = userLibrary.map((f) => ({ ...f, section: f.section || 'local', hasLocalBlob: !!f.hasLocalBlob }));
+      userLibrary = dedupeLibraryItems(userLibrary);
       console.log('[Coverse] Loaded', userLibrary.length, 'files from storage');
     }
   } catch (e) {
@@ -9622,7 +9805,7 @@ async function loadRemoteLibraryItems() {
       hasLocalBlob: !!localById.get(item.id)?.hasLocalBlob
     });
   });
-  userLibrary = Array.from(localById.values());
+  userLibrary = dedupeLibraryItems(Array.from(localById.values()));
 }
 
 function normalizeSiteLibraryItem(docId, rawData) {
@@ -10323,7 +10506,7 @@ async function loadSiteLibraryItems() {
       section: 'site'
     });
   });
-  userLibrary = Array.from(localById.values());
+  userLibrary = dedupeLibraryItems(Array.from(localById.values()));
   const apiDebug = apiMeta
     ? `apiFetched ${apiMeta.fetchedCount}/${apiMeta.totalCount || '?'} in ${apiMeta.pagesFetched} page(s)`
     : `apiFetched ${apiItems.length}`;
@@ -11563,6 +11746,7 @@ function showMarketplaceView() {
 function renderSessionBar() {
   const sessionBar = document.getElementById('sessionBar');
   const addBtn = document.getElementById('btnAddSession');
+  const insertAnchor = addBtn?.previousElementSibling || null;
   
   // Remove existing session icons (keep home and dividers)
   document.querySelectorAll('.session-icon').forEach(el => el.remove());
@@ -11573,14 +11757,34 @@ function renderSessionBar() {
     icon.className = 'session-icon';
     icon.dataset.session = session.id;
     icon.title = session.name;
+    icon.tabIndex = 0;
+    icon.setAttribute('role', 'button');
+    icon.setAttribute('aria-label', session.name);
     icon.innerHTML = `<span>${session.icon}</span>`;
     icon.addEventListener('click', () => selectSession(session.id));
+    icon.addEventListener('dblclick', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      showSessionContextMenu(session.id, event.clientX || 16, event.clientY || 16);
+    });
     icon.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       showSessionContextMenu(session.id, e.clientX, e.clientY);
     });
+    icon.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectSession(session.id);
+      }
+
+      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+        event.preventDefault();
+        const rect = icon.getBoundingClientRect();
+        showSessionContextMenu(session.id, rect.left + 12, rect.bottom + 6);
+      }
+    });
     
-    sessionBar.insertBefore(icon, addBtn.previousElementSibling);
+    sessionBar.insertBefore(icon, insertAnchor);
   });
 
   if (currentSession) {
@@ -11588,6 +11792,17 @@ function renderSessionBar() {
       icon.classList.toggle('active', icon.dataset.session === currentSession.id);
     });
   }
+}
+
+function canDeleteSession(session) {
+  if (!session) return false;
+
+  const ownerUid = String(session.ownerUid || '').trim();
+  const currentUid = String(currentUser?.uid || '').trim();
+
+  if (!ownerUid) return true;
+  if (!currentUid) return false;
+  return ownerUid === currentUid;
 }
 
 function showSessionContextMenu(sessionId, x, y) {
@@ -11599,21 +11814,34 @@ function showSessionContextMenu(sessionId, x, y) {
   
   const session = sessions.find(s => s.id === sessionId);
   if (!session) return;
+  const allowDelete = canDeleteSession(session);
   
   const menu = document.createElement('div');
   menu.className = 'session-context-menu';
   menu.style.left = x + 'px';
   menu.style.top = y + 'px';
   menu.innerHTML = `
+    <div class="session-context-menu-item" data-action="invite">
+      <svg viewBox="0 0 256 256"><path d="M256,128a8,8,0,0,1-8,8H136v112a8,8,0,0,1-16,0V136H8a8,8,0,0,1,0-16H120V8a8,8,0,0,1,16,0V120H248A8,8,0,0,1,256,128Z"/></svg>
+      <span>Invite People</span>
+    </div>
+    ${allowDelete ? `
+    <div class="session-context-menu-item" data-action="rename">
+      <svg viewBox="0 0 256 256"><path d="M227.32,73.37,182.63,28.69a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31l0,0L227.32,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120Z"/></svg>
+      <span>Rename Session</span>
+    </div>
+    ` : ''}
     <div class="session-context-menu-item" data-action="leave">
       <svg viewBox="0 0 256 256"><path d="M120,216a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H56V208h56A8,8,0,0,1,120,216Zm109.66-93.66-40-40a8,8,0,0,0-11.32,11.32L204.69,120H112a8,8,0,0,0,0,16h92.69l-26.35,26.34a8,8,0,0,0,11.32,11.32l40-40A8,8,0,0,0,229.66,122.34Z"/></svg>
       <span>Leave Session</span>
     </div>
-    <div class="session-context-menu-divider"></div>
-    <div class="session-context-menu-item text-danger" data-action="delete">
-      <svg viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>
-      <span>Delete Session</span>
-    </div>
+    ${allowDelete ? `
+      <div class="session-context-menu-divider"></div>
+      <div class="session-context-menu-item text-danger" data-action="delete">
+        <svg viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>
+        <span>Delete Session</span>
+      </div>
+    ` : ''}
   `;
   
   document.body.appendChild(menu);
@@ -11628,15 +11856,27 @@ function showSessionContextMenu(sessionId, x, y) {
   }
   
   // Add action handlers
+  menu.querySelector('[data-action="invite"]')?.addEventListener('click', () => {
+    menu.remove();
+    openSessionInviteModal();
+  });
+
+  menu.querySelector('[data-action="rename"]')?.addEventListener('click', () => {
+    menu.remove();
+    renameSession(sessionId);
+  });
+
   menu.querySelector('[data-action="leave"]')?.addEventListener('click', () => {
     menu.remove();
     leaveSession(sessionId);
   });
   
-  menu.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
-    menu.remove();
-    deleteSession(sessionId);
-  });
+  if (allowDelete) {
+    menu.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
+      menu.remove();
+      deleteSession(sessionId);
+    });
+  }
   
   // Close on outside click
   setTimeout(() => {
@@ -11660,8 +11900,17 @@ function showSessionContextMenu(sessionId, x, y) {
 }
 
 async function deleteSession(sessionId) {
+  console.log('[Coverse] deleteSession called with sessionId:', sessionId);
   const session = sessions.find(s => s.id === sessionId);
-  if (!session) return;
+  if (!session) { console.warn('[Coverse] deleteSession: session not found'); return; }
+
+  console.log('[Coverse] deleteSession: session found:', session.name, 'ownerUid:', session.ownerUid, 'currentUser:', currentUser?.uid);
+  if (!canDeleteSession(session)) {
+    const leaveInstead = confirm(`You can only delete sessions you own.\n\nLeave "${session.name}" instead?`);
+    if (!leaveInstead) return;
+    await leaveSession(sessionId, { skipConfirm: true });
+    return;
+  }
   
   const confirmed = confirm(`Delete "${session.name}"?\n\nThis will permanently delete the session and all its data.`);
   if (!confirmed) return;
@@ -11674,6 +11923,14 @@ async function deleteSession(sessionId) {
       await window.firebaseDeleteDoc(sessionRef);
     } catch (error) {
       console.error('[Coverse] Failed to delete session from cloud:', error);
+
+      const message = String(error?.message || '').toLowerCase();
+      const permissionDenied = /missing or insufficient permissions|permission[-_ ]denied/.test(message);
+      if (permissionDenied) {
+        await leaveSession(sessionId, { skipConfirm: true });
+        showNotification('You are not allowed to delete this session, so we left it instead.', { level: 'warning' });
+        return;
+      }
     }
   }
   
@@ -11698,12 +11955,56 @@ async function deleteSession(sessionId) {
   showNotification(`Deleted "${session.name}"`, { level: 'info' });
 }
 
-async function leaveSession(sessionId) {
+async function renameSession(sessionId) {
   const session = sessions.find(s => s.id === sessionId);
   if (!session) return;
+
+  const newName = prompt('Rename session:', session.name);
+  if (!newName || !newName.trim() || newName.trim() === session.name) return;
+
+  const cleanName = newName.trim();
+  const oldName = session.name;
+  session.name = cleanName;
+  session.icon = cleanName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+
+  // Persist to Firebase
+  if (currentUser && window.firebaseDb && window.firebaseUpdateDoc && window.firebaseDoc) {
+    try {
+      await window.firebaseUpdateDoc(window.firebaseDoc(window.firebaseDb, 'sessions', sessionId), {
+        name: cleanName,
+        icon: session.icon,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.warn('[Coverse] Failed to rename session:', error);
+      session.name = oldName;
+      showNotification('Could not rename session.', { level: 'error' });
+      return;
+    }
+  }
+
+  saveSessionsToStorage();
+  renderSessionBar();
+
+  // Update header if currently viewing this session
+  if (currentSession?.id === sessionId) {
+    const sessionHeader = document.getElementById('sessionNameHeader');
+    if (sessionHeader) sessionHeader.textContent = cleanName;
+  }
+
+  showNotification(`Renamed to "${cleanName}"`, { level: 'success' });
+}
+
+async function leaveSession(sessionId, options = {}) {
+  const session = sessions.find(s => s.id === sessionId);
+  if (!session) return;
+
+  const skipConfirm = options.skipConfirm === true;
   
-  const confirmed = confirm(`Leave "${session.name}"?\n\nYou can rejoin later with the invite code.`);
-  if (!confirmed) return;
+  if (!skipConfirm) {
+    const confirmed = confirm(`Leave "${session.name}"?\n\nYou can rejoin later with the invite code.`);
+    if (!confirmed) return;
+  }
   
   // Remove from Firebase memberIds if user is logged in
   if (currentUser && window.firebaseDb) {
@@ -11870,11 +12171,13 @@ function selectSession(sessionId) {
   // Update session header
   document.getElementById('currentSessionName').textContent = currentSession.name;
   document.getElementById('btnCopySessionInvite')?.classList.remove('hidden');
+  document.getElementById('btnSessionMenu')?.classList.remove('hidden');
   updatePendingFriendsBadge();
   
   // Show channel list, hide home sidebar
   document.getElementById('homeSidebar')?.classList.add('hidden');
   document.getElementById('channelList')?.classList.remove('hidden');
+  renderSessionChannels();
   
   // Hide friends/DM views, show voice preview
   document.getElementById('friendsView')?.classList.remove('active');
@@ -11885,8 +12188,8 @@ function selectSession(sessionId) {
   document.getElementById('discoverView')?.classList.remove('active');
   document.getElementById('marketplaceView')?.classList.remove('active');
   
-  // Select first voice channel by default
-  selectChannel('main', 'voice');
+  // Select the session's default live room
+  selectChannel(getDefaultVoiceChannelId(currentSession), 'voice');
 }
 
 function showHomeView() {
@@ -11903,6 +12206,7 @@ function showHomeView() {
   
   document.getElementById('currentSessionName').textContent = 'Coverse';
   document.getElementById('btnCopySessionInvite')?.classList.add('hidden');
+  document.getElementById('btnSessionMenu')?.classList.add('hidden');
   
   // Show home sidebar (Friends/DMs), hide channel list
   document.getElementById('homeSidebar')?.classList.remove('hidden');
@@ -11968,21 +12272,396 @@ function showDMView() {
   });
 }
 
+function channelNameToId(value, fallback = 'channel') {
+  const base = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return base || fallback;
+}
+
+function formatChannelLabel(value, fallback = 'Channel') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+
+  const hasIntentionalCase = /[A-Z]/.test(raw);
+  if (hasIntentionalCase) return raw;
+
+  return raw
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function normalizeSessionChannelList(entries, fallbackChannels) {
+  const sourceList = Array.isArray(entries) && entries.length ? entries : fallbackChannels;
+  const seenIds = new Set();
+  const unique = [];
+
+  sourceList.forEach((entry) => {
+    const cleanEntry = String(entry || '').trim();
+    if (!cleanEntry) return;
+    const entryId = channelNameToId(cleanEntry, 'channel');
+    if (seenIds.has(entryId)) return;
+    seenIds.add(entryId);
+    unique.push(cleanEntry);
+  });
+
+  if (unique.length) return unique;
+  return fallbackChannels.slice();
+}
+
+function getSessionTextChannels(session = currentSession) {
+  const normalized = normalizeSessionChannelList(session?.textChannels, DEFAULT_TEXT_CHANNELS);
+  if (session) {
+    session.textChannels = normalized.slice();
+  }
+  return normalized;
+}
+
+function getSessionVoiceChannels(session = currentSession) {
+  const normalized = normalizeSessionChannelList(session?.voiceChannels, DEFAULT_VOICE_CHANNELS);
+  if (session) {
+    session.voiceChannels = normalized.slice();
+  }
+  return normalized;
+}
+
+function getChannelDisplayName(channelId, channelType, session = currentSession) {
+  const normalizedId = channelNameToId(channelId, 'channel');
+  if (channelType === 'info' && normalizedId === SESSION_BOARD_CHANNEL_ID) {
+    return SESSION_BOARD_LABEL;
+  }
+
+  if (channelType === 'voice') {
+    const voiceName = getSessionVoiceChannels(session).find((entry) => channelNameToId(entry) === normalizedId);
+    return formatChannelLabel(voiceName || channelId, 'Live Room');
+  }
+
+  const textName = getSessionTextChannels(session).find((entry) => channelNameToId(entry) === normalizedId);
+  return formatChannelLabel(textName || channelId, 'Conversation');
+}
+
+function getDefaultVoiceChannelId(session = currentSession) {
+  const voiceChannels = getSessionVoiceChannels(session);
+  if (!voiceChannels.length) return 'main';
+  return channelNameToId(voiceChannels[0], 'main');
+}
+
+function getTextChannelIconSvg() {
+  return '<svg viewBox="0 0 256 256"><path d="M216,48H40A16,16,0,0,0,24,64V216a8,8,0,0,0,13.66,5.66L80,179.31H216a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48Zm0,115.31H76.69a8,8,0,0,0-5.66,2.35L40,196.69V64H216Z"/></svg>';
+}
+
+function getVoiceChannelIconSvg() {
+  return '<svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>';
+}
+
+function getChannelDeleteButtonSvg() {
+  return '<svg viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>';
+}
+
+function renderSessionChannels() {
+  const textContainer = document.getElementById('textChannelsContainer');
+  const voiceContainer = document.getElementById('voiceChannelsContainer');
+  if (!textContainer || !voiceContainer) return;
+
+  const boardItem = document.querySelector(`.channel-item[data-channel="${SESSION_BOARD_CHANNEL_ID}"][data-type="info"]`);
+  if (boardItem) {
+    boardItem.classList.toggle('active', currentChannelType !== 'voice' && currentChannel === SESSION_BOARD_CHANNEL_ID);
+    const boardNameEl = boardItem.querySelector('.channel-name');
+    if (boardNameEl) {
+      boardNameEl.textContent = SESSION_BOARD_LABEL;
+    }
+  }
+
+  const textChannels = getSessionTextChannels(currentSession);
+  const voiceChannels = getSessionVoiceChannels(currentSession);
+
+  textContainer.innerHTML = textChannels.map((name) => {
+    const channelId = channelNameToId(name, 'conversation');
+    const isActive = currentChannelType !== 'voice' && currentChannel === channelId;
+    const channelLabel = formatChannelLabel(name, 'Conversation');
+    return `
+      <div class="channel-item${isActive ? ' active' : ''}" data-channel="${escapeHtml(channelId)}" data-type="text">
+        ${getTextChannelIconSvg()}
+        <span class="channel-name">${escapeHtml(channelLabel)}</span>
+        <button class="channel-delete-btn" data-action="delete-channel" data-channel="${escapeHtml(channelId)}" data-type="text" type="button" title="Delete conversation" aria-label="Delete ${escapeHtml(channelLabel)}">
+          ${getChannelDeleteButtonSvg()}
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  voiceContainer.innerHTML = voiceChannels.map((name, index) => {
+    const channelId = channelNameToId(name, `room-${index + 1}`);
+    const isActive = currentChannelType === 'voice' && currentChannel === channelId;
+    const timerMarkup = index === 0 ? '<span class="voice-timer" id="voiceTimer"></span>' : '';
+    const channelLabel = formatChannelLabel(name, 'Live Room');
+
+    return `
+      <div class="channel-item${isActive ? ' active' : ''}" data-channel="${escapeHtml(channelId)}" data-type="voice">
+        ${getVoiceChannelIconSvg()}
+        <span class="channel-name">${escapeHtml(channelLabel)}</span>
+        ${timerMarkup}
+        <button class="channel-delete-btn" data-action="delete-channel" data-channel="${escapeHtml(channelId)}" data-type="voice" type="button" title="Delete live room" aria-label="Delete ${escapeHtml(channelLabel)}">
+          ${getChannelDeleteButtonSvg()}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function persistSessionChannels(session) {
+  if (!session?.id || !window.firebaseDb || !window.firebaseSetDoc) return;
+
+  try {
+    await window.firebaseSetDoc(
+      window.firebaseDoc(window.firebaseDb, 'sessions', session.id),
+      {
+        textChannels: getSessionTextChannels(session),
+        voiceChannels: getSessionVoiceChannels(session),
+        updatedAt: new Date()
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.warn('[Coverse] Could not persist new channel list to cloud:', error);
+    showNotification('Saved channel locally. Cloud sync will retry later.', { level: 'warning' });
+  }
+}
+
+function promptForChannelName(promptLabel, defaultName) {
+  const fallbackName = String(defaultName || '').trim() || 'Channel';
+
+  try {
+    if (typeof window.prompt === 'function') {
+      return window.prompt(`Name your new ${promptLabel}:`, fallbackName);
+    }
+  } catch (error) {
+    console.warn('[Coverse] Native prompt unavailable for channel naming, using fallback name:', error);
+  }
+
+  return fallbackName;
+}
+
+async function createSessionChannel(channelType = 'text') {
+  try {
+    if (!currentSession) {
+      showNotification('Open a session first to add channels.', { level: 'warning' });
+      return;
+    }
+
+    const normalizedType = channelType === 'voice' ? 'voice' : 'text';
+    const isVoice = normalizedType === 'voice';
+    const existingChannels = isVoice
+      ? getSessionVoiceChannels(currentSession)
+      : getSessionTextChannels(currentSession);
+
+    const defaultName = isVoice
+      ? `Room ${existingChannels.length + 1}`
+      : `Conversation ${existingChannels.length + 1}`;
+    const promptLabel = isVoice ? 'live room' : 'conversation';
+    const rawName = promptForChannelName(promptLabel, defaultName);
+    if (rawName === null) return;
+
+    const cleanName = String(rawName || '').trim().replace(/\s+/g, ' ');
+    if (!cleanName) {
+      showNotification('Channel name cannot be empty.', { level: 'warning' });
+      return;
+    }
+
+    const nextId = channelNameToId(cleanName, isVoice ? 'room' : 'conversation');
+    const alreadyExists = existingChannels.some((entry) => channelNameToId(entry) === nextId);
+    if (alreadyExists) {
+      showNotification('A channel with that name already exists.', { level: 'warning' });
+      return;
+    }
+
+    if (isVoice) {
+      currentSession.voiceChannels = [...existingChannels, cleanName];
+    } else {
+      currentSession.textChannels = [...existingChannels, cleanName];
+    }
+
+    saveSessionsToStorage();
+    await persistSessionChannels(currentSession);
+    renderSessionChannels();
+    selectChannel(nextId, normalizedType);
+    showNotification(`${formatChannelLabel(cleanName)} added.`, { level: 'success' });
+  } catch (error) {
+    console.warn('[Coverse] Failed to create channel:', error);
+    showNotification('Could not create channel. Please try again.', { level: 'error' });
+  }
+}
+
+async function deleteSessionChannel(channelId, channelType = 'text') {
+  console.log('[Coverse] deleteSessionChannel called with:', channelId, channelType);
+  try {
+    if (!currentSession) {
+      console.warn('[Coverse] deleteSessionChannel: no currentSession');
+      showNotification('Open a session first to delete channels.', { level: 'warning' });
+      return;
+    }
+
+    console.log('[Coverse] deleteSessionChannel: currentSession:', currentSession.name);
+    const normalizedType = channelType === 'voice' ? 'voice' : 'text';
+    const isVoice = normalizedType === 'voice';
+    const existingChannels = isVoice
+      ? getSessionVoiceChannels(currentSession)
+      : getSessionTextChannels(currentSession);
+
+    if (existingChannels.length <= 1) {
+      showNotification(`A session needs at least one ${isVoice ? 'live room' : 'conversation'}.`, { level: 'warning' });
+      return;
+    }
+
+    const normalizedId = channelNameToId(channelId, isVoice ? 'room' : 'conversation');
+    const channelName = existingChannels.find((entry) => channelNameToId(entry) === normalizedId);
+    if (!channelName) return;
+
+    const displayName = formatChannelLabel(channelName, isVoice ? 'Live Room' : 'Conversation');
+    const confirmed = confirm(`Delete "${displayName}"?\n\nThis will remove this ${isVoice ? 'live room' : 'conversation'} from the session.`);
+    if (!confirmed) return;
+
+    const remainingChannels = existingChannels.filter((entry) => channelNameToId(entry) !== normalizedId);
+    if (!remainingChannels.length) {
+      showNotification(`A session needs at least one ${isVoice ? 'live room' : 'conversation'}.`, { level: 'warning' });
+      return;
+    }
+
+    if (isVoice) {
+      currentSession.voiceChannels = remainingChannels;
+    } else {
+      currentSession.textChannels = remainingChannels;
+    }
+
+    saveSessionsToStorage();
+    await persistSessionChannels(currentSession);
+    renderSessionChannels();
+
+    const wasSelected = currentChannelType === normalizedType && currentChannel === normalizedId;
+    if (wasSelected) {
+      const fallbackChannelId = channelNameToId(remainingChannels[0], isVoice ? 'room' : 'conversation');
+      selectChannel(fallbackChannelId, normalizedType);
+    }
+
+    showNotification(`${displayName} deleted.`, { level: 'info' });
+  } catch (error) {
+    console.warn('[Coverse] Failed to delete channel:', error);
+    showNotification('Could not delete channel. Please try again.', { level: 'error' });
+  }
+}
+
+function showChannelContextMenu(channelId, channelType, x, y) {
+  // Remove any existing context menus
+  document.querySelector('.session-context-menu')?.remove();
+
+  const normalizedType = channelType === 'voice' ? 'voice' : 'text';
+  const isVoice = normalizedType === 'voice';
+  const displayName = formatChannelLabel(channelId, isVoice ? 'Live Room' : 'Conversation');
+
+  const menu = document.createElement('div');
+  menu.className = 'session-context-menu';
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.innerHTML = `
+    <div class="session-context-menu-item text-danger" data-action="delete-channel">
+      <svg viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>
+      <span>Delete ${displayName}</span>
+    </div>
+  `;
+
+  document.body.appendChild(menu);
+
+  // Keep menu on screen
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    menu.style.left = (window.innerWidth - rect.width - 8) + 'px';
+  }
+  if (rect.bottom > window.innerHeight) {
+    menu.style.top = (window.innerHeight - rect.height - 8) + 'px';
+  }
+
+  menu.querySelector('[data-action="delete-channel"]')?.addEventListener('click', () => {
+    menu.remove();
+    deleteSessionChannel(channelId, normalizedType);
+  });
+
+  // Close on outside click
+  setTimeout(() => {
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    document.addEventListener('click', closeMenu);
+  }, 0);
+
+  // Close on ESC
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      menu.remove();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+}
+
 // ============================================
 // CHANNEL BAR
 // ============================================
 function initChannelBar() {
   // Channel categories (collapse/expand)
   document.querySelectorAll('.channel-category').forEach(cat => {
-    cat.addEventListener('click', () => {
+    cat.addEventListener('click', (event) => {
+      if (event.target.closest('.category-add-btn')) {
+        return;
+      }
       cat.classList.toggle('collapsed');
     });
   });
-  
-  // Channel items
-  document.querySelectorAll('.channel-item').forEach(item => {
-    item.addEventListener('click', () => {
-      selectChannel(item.dataset.channel, item.dataset.type);
+
+  // Channel items (delegated so dynamically added channels work too)
+  const channelListEl = document.getElementById('channelList');
+  channelListEl?.addEventListener('click', (event) => {
+    const deleteButton = event.target?.closest?.('.channel-delete-btn');
+    if (deleteButton) {
+      console.log('[Coverse] Channel delete button clicked:', deleteButton.dataset.channel, deleteButton.dataset.type);
+      event.preventDefault();
+      event.stopPropagation();
+      deleteSessionChannel(deleteButton.dataset.channel, deleteButton.dataset.type);
+      return;
+    }
+
+    const item = event.target?.closest?.('.channel-item');
+    if (!item) return;
+    if (!item.dataset.channel || !item.dataset.type) return;
+    selectChannel(item.dataset.channel, item.dataset.type);
+  });
+
+  // Right-click context menu on channels for delete
+  channelListEl?.addEventListener('contextmenu', (event) => {
+    const item = event.target?.closest?.('.channel-item');
+    if (!item) return;
+    const channelId = item.dataset.channel;
+    const channelType = item.dataset.type;
+    if (!channelId || !channelType) return;
+    if (channelType === 'info') return; // don't allow deleting Session Board
+
+    event.preventDefault();
+    showChannelContextMenu(channelId, channelType, event.clientX, event.clientY);
+  });
+
+  // Category add buttons
+  document.querySelectorAll('.category-add-btn').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const channelType = String(button.dataset.channelType || '').trim().toLowerCase();
+      createSessionChannel(channelType);
     });
   });
   
@@ -11993,6 +12672,17 @@ function initChannelBar() {
   document.getElementById('btnCopySessionInvite')?.addEventListener('click', async (e) => {
     e.stopPropagation();
     await openSessionInviteModal();
+  });
+
+  document.getElementById('btnSessionMenu')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!currentSession) return;
+
+    const trigger = event.currentTarget;
+    const rect = trigger.getBoundingClientRect();
+    showSessionContextMenu(currentSession.id, rect.left, rect.bottom + 6);
   });
 
   document.getElementById('btnNotifications')?.addEventListener('click', (event) => {
@@ -12034,7 +12724,7 @@ function initChannelBar() {
     closeNotificationCenter();
 
     if (currentSession) {
-      await openSessionInviteModal();
+      toggleMembersPanel();
       return;
     }
 
@@ -12048,6 +12738,10 @@ function initChannelBar() {
     setTimeout(() => {
       document.getElementById('searchFriends')?.focus();
     }, 100);
+  });
+
+  document.getElementById('btnCloseMembersPanel')?.addEventListener('click', () => {
+    closeMembersPanel();
   });
   
   // Home navigation items
@@ -12112,15 +12806,18 @@ function initChannelBar() {
   renderNotificationCenter();
   updateNotificationUnreadBadge();
   updatePendingFriendsBadge();
+  renderSessionChannels();
 }
 
 function selectChannel(channelId, channelType) {
-  currentChannel = channelId;
+  const normalizedChannelId = channelNameToId(channelId, 'channel');
+  currentChannel = normalizedChannelId;
   currentChannelType = channelType;
+  let channelLabel = '';
   
   // Update active state
   document.querySelectorAll('.channel-item').forEach(item => {
-    item.classList.toggle('active', item.dataset.channel === channelId);
+    item.classList.toggle('active', item.dataset.channel === normalizedChannelId);
   });
   
   // Update header
@@ -12131,13 +12828,14 @@ function selectChannel(channelId, channelType) {
   const headerIcon = header?.querySelector('svg');
   
   if (channelType === 'voice') {
-    setActiveVoiceContextFromSelection(currentSession?.id || lastSessionId, channelId);
+    setActiveVoiceContextFromSelection(currentSession?.id || lastSessionId, normalizedChannelId);
+    channelLabel = getChannelDisplayName(normalizedChannelId, 'voice', currentSession);
 
     if (headerIcon) {
       headerIcon.outerHTML = `<svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>`;
     }
     if (title) {
-      title.textContent = channelId.charAt(0).toUpperCase() + channelId.slice(1);
+      title.textContent = channelLabel;
     }
     
     // Show voice preview or call view
@@ -12151,31 +12849,35 @@ function selectChannel(channelId, channelType) {
         console.warn('[Coverse] Voice signaling reconnect failed on channel switch:', error);
       });
     } else {
-      showVoicePreview(channelId);
+      showVoicePreview(channelLabel);
       ensureVoicePreviewRealtimeSync().catch((error) => {
         console.warn('[Coverse] Voice preview sync failed on channel switch:', error);
       });
       updateRemoteControlButtonState();
     }
   } else {
+    channelLabel = channelType === 'info'
+      ? SESSION_BOARD_LABEL
+      : getChannelDisplayName(normalizedChannelId, 'text', currentSession);
+
     if (!inVoiceCall) {
       clearVoicePreviewRealtimeSubscription({ resetParticipants: true, preserveContext: false });
     }
 
     if (headerIcon) {
-      headerIcon.outerHTML = `<svg viewBox="0 0 256 256"><path d="M224,88H175.4l8.47-46.57a8,8,0,0,0-15.74-2.86l-9,49.43H111.4l8.47-46.57a8,8,0,0,0-15.74-2.86L95.14,88H48a8,8,0,0,0,0,16H92.23L81.14,168H32a8,8,0,0,0,0,16H78.23l-8.47,46.57a8,8,0,0,0,6.44,9.3A7.79,7.79,0,0,0,77.63,240a8,8,0,0,0,7.87-6.57l9-49.43h47.72l-8.47,46.57a8,8,0,0,0,6.44,9.3,7.79,7.79,0,0,0,1.43.13,8,8,0,0,0,7.87-6.57l9-49.43H208a8,8,0,0,0,0-16H161.77l11.09-64H224a8,8,0,0,0,0-16Zm-76.49,80H99.77l11.09-64h47.72Z"/></svg>`;
+      headerIcon.outerHTML = `<svg viewBox="0 0 256 256"><path d="M216,48H40A16,16,0,0,0,24,64V216a8,8,0,0,0,13.66,5.66L80,179.31H216a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48Zm0,115.31H76.69a8,8,0,0,0-5.66,2.35L40,196.69V64H216Z"/></svg>`;
     }
     if (title) {
-      title.textContent = channelId;
+      title.textContent = channelLabel;
     }
     
-    showChatView(channelId);
+    showChatView(channelLabel);
   }
   
   // Update chat input placeholder
   const chatInput = document.getElementById('chatInput');
   if (chatInput) {
-    chatInput.placeholder = `Message #${channelId}`;
+    chatInput.placeholder = `Message in ${channelLabel || formatChannelLabel(normalizedChannelId, 'channel')}`;
   }
 }
 
@@ -12187,7 +12889,8 @@ function showVoicePreview(channelId) {
   document.getElementById('chatView')?.classList.remove('active');
   document.getElementById('libraryView')?.classList.remove('active');
   
-  document.getElementById('voicePreviewTitle').textContent = channelId.charAt(0).toUpperCase() + channelId.slice(1);
+  const label = String(channelId || '').trim();
+  document.getElementById('voicePreviewTitle').textContent = label || 'Live Room';
 
   renderVoiceUsersList();
   refreshVoicePreviewStatus();
@@ -12200,18 +12903,37 @@ function showCallView() {
   document.getElementById('callView')?.classList.add('active');
   document.getElementById('chatView')?.classList.remove('active');
   document.getElementById('libraryView')?.classList.remove('active');
+  document.getElementById('btnStageStopShare')?.classList.toggle('hidden', !isScreenSharing);
   
   renderParticipants();
   updateRemoteControlButtonState();
 }
 
-function showChatView(channelId) {
+function showChatView(channelLabel) {
   document.getElementById('voicePreview')?.classList.add('hidden');
   document.getElementById('callView')?.classList.remove('hidden');
   document.getElementById('chatView')?.classList.remove('hidden');
   document.getElementById('callView')?.classList.remove('active');
   document.getElementById('chatView')?.classList.add('active');
   document.getElementById('libraryView')?.classList.remove('active');
+
+  // Update placeholder text
+  const chatInput = document.getElementById('chatInput');
+  if (chatInput) {
+    chatInput.placeholder = `Message in ${channelLabel || 'general'}`;
+  }
+
+  // Load cached messages immediately, then subscribe for real-time
+  const key = getChannelMessagesKey();
+  const cached = key ? channelMessagesCache.get(key) : null;
+  if (cached) {
+    renderChannelMessages(cached);
+  } else {
+    const container = document.getElementById('chatMessages');
+    if (container) container.innerHTML = '<div class="chat-empty">Loading messages...</div>';
+  }
+
+  subscribeToChannelMessages();
 }
 
 function getVoiceTimestampMs(value) {
@@ -12496,6 +13218,10 @@ function ensureRemoteAudioElement(remoteUid, stream) {
   }
 
   audioEl.muted = Boolean(isDeafened);
+  // Apply saved volume
+  if (participantVolumes.has(uid)) {
+    audioEl.volume = participantVolumes.get(uid);
+  }
   const playPromise = audioEl.play?.();
   if (playPromise && typeof playPromise.catch === 'function') {
     playPromise.catch(() => {
@@ -12522,6 +13248,21 @@ function removeRemoteAudioElement(remoteUid) {
   audioEl.srcObject = null;
   audioEl.remove();
   remoteAudioElements.delete(uid);
+}
+
+const participantVolumes = new Map(); // pid → 0..1
+
+function setParticipantVolume(participantId, volume) {
+  const pid = String(participantId || '').trim();
+  if (!pid) return;
+  const clampedVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+  participantVolumes.set(pid, clampedVolume);
+
+  // Apply to audio element
+  const audioEl = remoteAudioElements.get(pid);
+  if (audioEl) {
+    audioEl.volume = clampedVolume;
+  }
 }
 
 function clearRemoteAudioElements() {
@@ -14007,6 +14748,29 @@ function initVoiceControls() {
   });
   document.getElementById('btnDisconnect')?.addEventListener('click', disconnectVoice);
   document.getElementById('callStage')?.addEventListener('click', cycleActiveStageSource);
+  document.getElementById('btnStageStopShare')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isScreenSharing) {
+      stopScreenShare();
+    }
+  });
+  document.getElementById('btnStagePopout')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (activeStageSource?.participantId) {
+      openParticipantPopout(activeStageSource.participantId, activeStageSource.sourceType || 'camera');
+    }
+  });
+  document.getElementById('stageVolumeSlider')?.addEventListener('input', (event) => {
+    event.stopPropagation();
+    if (activeStageSource?.participantId) {
+      const volume = parseInt(event.target.value, 10) / 100;
+      setParticipantVolume(String(activeStageSource.participantId), volume);
+    }
+  });
+  document.getElementById('stageVolumeSlider')?.addEventListener('click', (e) => e.stopPropagation());
+  document.getElementById('stageVolumeControl')?.addEventListener('click', (e) => e.stopPropagation());
   
   // Device dropdowns
   document.getElementById('btnMicDropdown')?.addEventListener('click', (e) => {
@@ -14121,6 +14885,7 @@ function disconnectVoice() {
   inVoiceCall = false;
   isJoiningVoice = false;
   isScreenSharing = false;
+  document.getElementById('btnStageStopShare')?.classList.add('hidden');
   isCameraOff = true;
   stageSelection = null;
   activeStageSource = null;
@@ -14451,6 +15216,7 @@ function startScreenPreviewCapture() {
 
 async function toggleScreenShare() {
   const btn = document.getElementById('btnScreenShare');
+  const stageStopBtn = document.getElementById('btnStageStopShare');
   
   if (!isScreenSharing) {
     try {
@@ -14461,6 +15227,7 @@ async function toggleScreenShare() {
       
       isScreenSharing = true;
       btn?.classList.add('active');
+      stageStopBtn?.classList.remove('hidden');
       startScreenPreviewCapture();
       
       // Update local participant
@@ -14507,6 +15274,7 @@ function stopScreenShare() {
   
   const btn = document.getElementById('btnScreenShare');
   btn?.classList.remove('active');
+  document.getElementById('btnStageStopShare')?.classList.add('hidden');
   
   const local = participants.find(p => p.isLocal);
   if (local) {
@@ -14580,19 +15348,27 @@ async function populateDeviceMenu(menuId) {
 // VOICE TIMER
 // ============================================
 function startVoiceTimer() {
-  const timerEl = document.getElementById('voiceTimer');
-  if (!timerEl) return;
+  if (voiceTimerInterval) {
+    clearInterval(voiceTimerInterval);
+    voiceTimerInterval = null;
+  }
+
+  const updateTimer = () => {
+    const timerEl = document.getElementById('voiceTimer');
+    if (!timerEl) return;
   
-  voiceTimerInterval = setInterval(() => {
     const elapsed = Date.now() - voiceStartTime;
     const hours = Math.floor(elapsed / 3600000);
     const mins = Math.floor((elapsed % 3600000) / 60000);
     const secs = Math.floor((elapsed % 60000) / 1000);
-    
+
     timerEl.textContent = hours > 0 
       ? `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
       : `${mins}:${secs.toString().padStart(2, '0')}`;
-  }, 1000);
+  };
+
+  updateTimer();
+  voiceTimerInterval = setInterval(updateTimer, 1000);
 }
 
 function stopVoiceTimer() {
@@ -14902,12 +15678,40 @@ function renderCallStage() {
   const stageImage = document.getElementById('stageImage');
   const placeholder = document.getElementById('stagePlaceholder');
   const stageLabelName = document.getElementById('stageLabelName');
+  const stageControls = document.getElementById('stageControls');
+  const stageVolumeControl = document.getElementById('stageVolumeControl');
+  const stageVolumeSlider = document.getElementById('stageVolumeSlider');
+  const btnStagePopout = document.getElementById('btnStagePopout');
   if (!stageVideo || !placeholder) return;
 
   // Route remote audio only through dedicated hidden <audio> elements.
   stageVideo.muted = true;
 
   activeStageSource = resolveActiveStageSource();
+
+  const hasActiveSource = !!(activeStageSource?.stream || activeStageSource?.previewImage);
+
+  // Update stage controls visibility
+  if (stageControls) {
+    if (hasActiveSource) {
+      stageControls.classList.remove('hidden');
+      // Show volume only for non-local participants
+      const stageParticipant = participants.find(p => p.id === activeStageSource.participantId);
+      if (stageVolumeControl) {
+        if (stageParticipant && !stageParticipant.isLocal) {
+          stageVolumeControl.classList.remove('hidden');
+          if (stageVolumeSlider) {
+            const savedVol = participantVolumes.get(String(stageParticipant.id || stageParticipant.uid));
+            stageVolumeSlider.value = String(Math.round((savedVol ?? 1) * 100));
+          }
+        } else {
+          stageVolumeControl.classList.add('hidden');
+        }
+      }
+    } else {
+      stageControls.classList.add('hidden');
+    }
+  }
 
   if (activeStageSource?.stream) {
     if (stageVideo.srcObject !== activeStageSource.stream) {
@@ -15161,11 +15965,14 @@ function openParticipantPopout(participantId, sourceType = 'camera') {
         inset: 0;
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        object-fit: contain;
+        object-position: center center;
+        display: block;
+        margin: 0;
         background: #020617;
       }
       .hidden {
-        display: none;
+        display: none !important;
       }
       .placeholder {
         position: absolute;
@@ -15199,14 +16006,34 @@ function openParticipantPopout(participantId, sourceType = 'camera') {
         color: #f8fafc;
         cursor: pointer;
       }
+      .pin-btn {
+        position: absolute;
+        top: 10px;
+        right: 46px;
+        width: 28px;
+        height: 28px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(2, 6, 23, 0.78);
+        color: #94a3b8;
+        cursor: pointer;
+        font-size: 14px;
+        display: grid;
+        place-items: center;
+      }
+      .pin-btn.active {
+        color: #38bdf8;
+        background: rgba(56, 189, 248, 0.18);
+      }
     </style>
   </head>
   <body>
     <div class="popout-root">
       <video id="popoutVideo" autoplay playsinline muted></video>
       <img id="popoutImage" class="hidden" alt="Participant preview">
-      <div class="placeholder" id="popoutPlaceholder">${escapeHtml(fallbackAvatar)}</div>
+      <div class="placeholder hidden" id="popoutPlaceholder">${escapeHtml(fallbackAvatar)}</div>
       <div class="label" id="popoutLabel">${escapeHtml(label)}</div>
+      <button class="pin-btn" id="popoutPin" type="button" aria-label="Always on top" title="Always on top">📌</button>
       <button class="close-btn" id="popoutClose" type="button" aria-label="Close">x</button>
     </div>
   </body>
@@ -15228,6 +16055,22 @@ function openParticipantPopout(participantId, sourceType = 'camera') {
 
   popoutWindow.document.getElementById('popoutClose')?.addEventListener('click', () => {
     closeParticipantPopout(key);
+  });
+
+  // Always-on-top pin button
+  const pinBtn = popoutWindow.document.getElementById('popoutPin');
+  let isPinned = false;
+  pinBtn?.addEventListener('click', async () => {
+    isPinned = !isPinned;
+    pinBtn.classList.toggle('active', isPinned);
+    if (window.coverse?.setPopoutAlwaysOnTop) {
+      try {
+        const popoutTitle = popoutWindow.document.title;
+        await window.coverse.setPopoutAlwaysOnTop(isPinned, popoutTitle);
+      } catch (_error) {
+        // Fallback: no-op if IPC not available
+      }
+    }
   });
 
   syncParticipantPopout(entry);
@@ -15264,6 +16107,12 @@ function renderParticipants() {
             <span>${escapeHtml(String(participant.name || 'User'))}</span>
           </div>
           <div class="participant-tile-actions">
+            ${!participant.isLocal ? `
+              <div class="participant-volume-control" title="Volume">
+                <svg class="volume-icon" viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+                <input type="range" class="participant-volume-slider" min="0" max="100" value="100" data-participant-id="${escapeHtml(participantId)}" title="Adjust volume">
+              </div>
+            ` : ''}
             ${hasCameraSource ? `
               <button class="participant-popout-btn" type="button" data-action="popout" data-source-type="camera" data-participant-id="${escapeHtml(participantId)}" title="Pop out camera">
                 <svg viewBox="0 0 256 256"><path d="M216,48H152a8,8,0,0,0,0,16h44.69L136,124.69,107.31,96,72,131.31a8,8,0,0,0,11.31,11.38L107.31,118.7,136,147.31,208,75.31V120a8,8,0,0,0,16,0V56A8,8,0,0,0,216,48ZM208,208H48V48h56a8,8,0,0,0,0-16H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152a8,8,0,0,0-16,0Z"/></svg>
@@ -15292,6 +16141,17 @@ function renderParticipants() {
       event.stopPropagation();
       openParticipantPopout(button.dataset.participantId, button.dataset.sourceType);
     });
+  });
+
+  // Volume sliders
+  container.querySelectorAll('.participant-volume-slider').forEach((slider) => {
+    slider.addEventListener('input', (event) => {
+      event.stopPropagation();
+      const pid = slider.dataset.participantId;
+      const volume = parseInt(slider.value, 10) / 100;
+      setParticipantVolume(pid, volume);
+    });
+    slider.addEventListener('click', (e) => e.stopPropagation());
   });
 
   bindParticipantStreams();
@@ -15425,11 +16285,22 @@ function updateLocalParticipant() {
 // ============================================
 // CHAT
 // ============================================
+// STATE – channel chat
+// ============================================
+let channelMessagesUnsubscribe = null;
+let channelMessagesCache = new Map(); // channelKey → messages array
+
+function getChannelMessagesKey() {
+  if (!currentSession?.id || !currentChannel) return '';
+  return `${currentSession.id}::${currentChannel}`;
+}
+
+// ============================================
 function initChat() {
   const input = document.getElementById('chatInput');
   input?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && input.value.trim()) {
-      sendMessage(input.value);
+      sendChannelMessage(input.value.trim());
       input.value = '';
     }
   });
@@ -15437,26 +16308,125 @@ function initChat() {
   document.getElementById('btnAttachFile')?.addEventListener('click', attachFile);
 }
 
-function sendMessage(text) {
+async function sendChannelMessage(text) {
+  if (!text) return;
+  if (!currentSession?.id || !currentChannel) {
+    showNotification('Select a channel to send messages.', { level: 'warning' });
+    return;
+  }
+
   const container = document.getElementById('chatMessages');
-  if (!container) return;
-  
+  const senderName = String(currentUser?.displayName || currentUser?.email || 'You').trim() || 'You';
+  const senderAvatar = getInitials(senderName);
   const now = new Date();
   const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  
-  const msg = document.createElement('div');
-  msg.className = 'chat-message';
-  msg.innerHTML = `
-    <div class="chat-message-avatar">Y</div>
-    <div class="chat-message-content">
-      <div class="chat-message-header">
-        <span class="chat-message-author">You</span>
-        <span class="chat-message-time">Today at ${time}</span>
+
+  // Optimistic render
+  if (container) {
+    const msg = document.createElement('div');
+    msg.className = 'chat-message';
+    msg.innerHTML = `
+      <div class="chat-message-avatar">${escapeHtml(senderAvatar)}</div>
+      <div class="chat-message-content">
+        <div class="chat-message-header">
+          <span class="chat-message-author">${escapeHtml(senderName)}</span>
+          <span class="chat-message-time">Today at ${time}</span>
+        </div>
+        <div class="chat-message-text">${escapeHtml(text)}</div>
       </div>
-      <div class="chat-message-text">${escapeHtml(text)}</div>
-    </div>
-  `;
-  container.appendChild(msg);
+    `;
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  // Persist to Firebase
+  if (currentUser && window.firebaseDb && window.firebaseAddDoc && window.firebaseCollection) {
+    try {
+      const db = window.firebaseDb;
+      const messagesRef = window.firebaseCollection(db, 'sessions', currentSession.id, 'channels', currentChannel, 'messages');
+      await window.firebaseAddDoc(messagesRef, {
+        text,
+        senderUid: currentUser.uid,
+        senderName,
+        senderAvatar,
+        createdAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date(),
+        sessionId: currentSession.id,
+        channelId: currentChannel
+      });
+    } catch (error) {
+      console.warn('[Coverse] Failed to save message:', error);
+      showNotification('Message may not have been saved.', { level: 'warning' });
+    }
+  }
+}
+
+function subscribeToChannelMessages() {
+  // Unsubscribe the existing listener
+  if (typeof channelMessagesUnsubscribe === 'function') {
+    channelMessagesUnsubscribe();
+    channelMessagesUnsubscribe = null;
+  }
+
+  if (!currentSession?.id || !currentChannel) return;
+  if (!currentUser || !window.firebaseDb) return;
+  if (!window.firebaseCollection || !window.firebaseQuery || !window.firebaseOrderBy || !window.firebaseOnSnapshot) return;
+
+  const db = window.firebaseDb;
+  const messagesRef = window.firebaseCollection(db, 'sessions', currentSession.id, 'channels', currentChannel, 'messages');
+  const q = window.firebaseQuery(messagesRef, window.firebaseOrderBy('createdAt', 'asc'), window.firebaseLimit(200));
+
+  channelMessagesUnsubscribe = window.firebaseOnSnapshot(q, (snapshot) => {
+    const messages = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() || {};
+      messages.push({ id: docSnap.id, ...data });
+    });
+
+    const key = getChannelMessagesKey();
+    if (key) channelMessagesCache.set(key, messages);
+
+    renderChannelMessages(messages);
+  }, (error) => {
+    console.warn('[Coverse] Channel messages listener error:', error);
+  });
+}
+
+function renderChannelMessages(messages) {
+  const container = document.getElementById('chatMessages');
+  if (!container) return;
+
+  if (!messages || !messages.length) {
+    container.innerHTML = '<div class="chat-empty">No messages yet. Say something!</div>';
+    return;
+  }
+
+  container.innerHTML = messages.map((msg) => {
+    const name = String(msg.senderName || 'User').trim() || 'User';
+    const avatar = String(msg.senderAvatar || getInitials(name));
+    const text = String(msg.text || '');
+    let time = '';
+    if (msg.createdAt) {
+      const d = typeof msg.createdAt.toDate === 'function' ? msg.createdAt.toDate() : new Date(msg.createdAt);
+      time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const today = new Date();
+      if (d.toDateString() !== today.toDateString()) {
+        time = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time;
+      }
+    }
+    return `
+      <div class="chat-message">
+        <div class="chat-message-avatar">${escapeHtml(avatar)}</div>
+        <div class="chat-message-content">
+          <div class="chat-message-header">
+            <span class="chat-message-author">${escapeHtml(name)}</span>
+            <span class="chat-message-time">${escapeHtml(time)}</span>
+          </div>
+          <div class="chat-message-text">${escapeHtml(text)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -15758,8 +16728,8 @@ async function createSession(name) {
         ownerUid: currentUser.uid,
         memberIds: [currentUser.uid],
         inviteCode,
-        textChannels: ['general', 'files'],
-        voiceChannels: ['Main', 'Studio'],
+        textChannels: DEFAULT_TEXT_CHANNELS.slice(),
+        voiceChannels: DEFAULT_VOICE_CHANNELS.slice(),
         createdAt: new Date(),
         updatedAt: new Date()
       }, { merge: true });
@@ -15784,8 +16754,8 @@ async function createSession(name) {
     name: cleanName,
     icon,
     inviteCode,
-    textChannels: ['general', 'files'],
-    voiceChannels: ['Main', 'Studio']
+    textChannels: DEFAULT_TEXT_CHANNELS.slice(),
+    voiceChannels: DEFAULT_VOICE_CHANNELS.slice()
   });
   saveSessionsToStorage();
   renderSessionBar();
@@ -15929,6 +16899,158 @@ function openSettings() {
 }
 
 // ============================================
+// MEMBERS PANEL
+// ============================================
+let membersPanelOpen = false;
+
+function toggleMembersPanel() {
+  if (membersPanelOpen) {
+    closeMembersPanel();
+  } else {
+    openMembersPanel();
+  }
+}
+
+function openMembersPanel() {
+  membersPanelOpen = true;
+  const panel = document.getElementById('membersPanel');
+  if (panel) panel.classList.remove('hidden');
+  renderMembersPanel();
+}
+
+function closeMembersPanel() {
+  membersPanelOpen = false;
+  const panel = document.getElementById('membersPanel');
+  if (panel) panel.classList.add('hidden');
+}
+
+async function renderMembersPanel() {
+  const listEl = document.getElementById('membersPanelList');
+  if (!listEl) return;
+
+  if (!currentSession) {
+    listEl.innerHTML = '<div class="members-panel-empty">No session selected</div>';
+    return;
+  }
+
+  listEl.innerHTML = '<div class="members-panel-empty">Loading members...</div>';
+
+  // Get session data from Firestore to read memberIds
+  let memberIds = [];
+  if (currentUser && window.firebaseDb && window.firebaseDoc && window.firebaseGetDoc) {
+    try {
+      const sessionDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'sessions', currentSession.id));
+      if (sessionDoc.exists()) {
+        const data = sessionDoc.data() || {};
+        memberIds = Array.isArray(data.memberIds) ? data.memberIds : [];
+      }
+    } catch (error) {
+      console.warn('[Coverse] Failed to load session members:', error);
+    }
+  }
+
+  if (!memberIds.length) {
+    listEl.innerHTML = '<div class="members-panel-empty">No members found</div>';
+    return;
+  }
+
+  // Fetch profiles for each member
+  const members = [];
+  for (const uid of memberIds) {
+    try {
+      const userDoc = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, 'users', uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data() || {};
+        members.push({
+          uid,
+          name: String(data.displayName || data.username || data.email || uid).trim(),
+          avatar: data.photoURL || '',
+          isOwner: currentSession.ownerUid === uid,
+          role: (currentSession.roles && currentSession.roles[uid]) || (currentSession.ownerUid === uid ? 'owner' : 'member')
+        });
+      } else {
+        members.push({ uid, name: uid, avatar: '', isOwner: false, role: 'member' });
+      }
+    } catch (_error) {
+      members.push({ uid, name: uid, avatar: '', isOwner: false, role: 'member' });
+    }
+  }
+
+  // Sort: owner first, then admins, then members
+  const roleOrder = { owner: 0, admin: 1, member: 2 };
+  members.sort((a, b) => (roleOrder[a.role] || 2) - (roleOrder[b.role] || 2));
+
+  const isOwner = currentSession.ownerUid === currentUser?.uid;
+
+  listEl.innerHTML = members.map((member) => {
+    const initials = getInitials(member.name || 'U');
+    const avatarHtml = member.avatar
+      ? `<img class="member-avatar-img" src="${escapeHtml(member.avatar)}" alt="">`
+      : `<span class="member-avatar-letter">${escapeHtml(initials)}</span>`;
+    const roleBadge = member.role === 'owner' ? '<span class="member-role-badge owner">Owner</span>'
+      : member.role === 'admin' ? '<span class="member-role-badge admin">Admin</span>'
+      : '';
+    const isCurrentUser = member.uid === currentUser?.uid;
+
+    // Owner can change roles for non-owner members
+    const roleControls = (isOwner && !isCurrentUser && member.role !== 'owner') ? `
+      <div class="member-role-actions">
+        <button class="member-role-btn" data-uid="${escapeHtml(member.uid)}" data-action="toggle-role" title="Toggle Admin">${member.role === 'admin' ? 'Remove Admin' : 'Make Admin'}</button>
+      </div>
+    ` : '';
+
+    return `
+      <div class="member-item${isCurrentUser ? ' is-self' : ''}" data-uid="${escapeHtml(member.uid)}">
+        <div class="member-avatar">${avatarHtml}</div>
+        <div class="member-info">
+          <div class="member-name">${escapeHtml(member.name)}${isCurrentUser ? ' <span class="member-you">(you)</span>' : ''}</div>
+          ${roleBadge}
+        </div>
+        ${roleControls}
+      </div>
+    `;
+  }).join('');
+
+  // Bind role toggle buttons
+  listEl.querySelectorAll('.member-role-btn[data-action="toggle-role"]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const uid = btn.dataset.uid;
+      await toggleMemberRole(uid);
+    });
+  });
+}
+
+async function toggleMemberRole(uid) {
+  if (!currentSession || !currentUser || currentSession.ownerUid !== currentUser.uid) return;
+
+  const roles = currentSession.roles || {};
+  const currentRole = roles[uid] || 'member';
+  const newRole = currentRole === 'admin' ? 'member' : 'admin';
+  roles[uid] = newRole;
+  currentSession.roles = roles;
+
+  // Persist to Firebase
+  if (window.firebaseDb && window.firebaseUpdateDoc && window.firebaseDoc) {
+    try {
+      await window.firebaseUpdateDoc(window.firebaseDoc(window.firebaseDb, 'sessions', currentSession.id), {
+        roles,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.warn('[Coverse] Failed to update role:', error);
+      showNotification('Could not update role.', { level: 'error' });
+      return;
+    }
+  }
+
+  saveSessionsToStorage();
+  renderMembersPanel();
+  showNotification(`Role updated to ${newRole}.`, { level: 'success' });
+}
+
+// ============================================
 // UTILITIES
 // ============================================
 function escapeHtml(text) {
@@ -15953,7 +17075,7 @@ if (typeof window !== 'undefined') {
     disconnectVoice,
     selectSession,
     selectChannel,
-    sendMessage,
+    sendChannelMessage,
     requestRemoteControl: handleRemoteControlAction
   };
 }

@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('coverse', {
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
+  setPopoutAlwaysOnTop: (enabled, title) => ipcRenderer.invoke('popout:set-always-on-top', { enabled, title }),
 
   // Native helper bridge (stubbed until helper is installed)
   helper: {

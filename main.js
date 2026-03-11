@@ -290,7 +290,29 @@ function createWindow() {
   // Handle popups - allow Google OAuth in Electron windows, others to external browser
   mainWindow.webContents.setWindowOpenHandler((details) => {
     const url = details.url || '';
-    console.log('[main] Popup requested:', url, 'features:', details.features, 'frameName:', details.frameName);
+    const frameName = details.frameName || '';
+    console.log('[main] Popup requested:', url, 'features:', details.features, 'frameName:', frameName);
+
+    // Participant popout windows – independent of main window so they stay
+    // visible when the main app is minimized.
+    if (frameName.startsWith('coverse-popout-')) {
+      console.log('[main] Allowing participant popout (independent)');
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 420,
+          height: 260,
+          // No parent – keeps popout open when main window is minimized
+          modal: false,
+          resizable: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            session: mainWindow.webContents.session
+          }
+        }
+      };
+    }
     
     // Allow Google OAuth and Firebase auth popups to open in Electron
     // Also allow about:blank which Firebase uses initially
@@ -751,6 +773,18 @@ ipcMain.on('vst-message', (event, message) => {
   if (wsServer) {
     wsServer.broadcast(message);
   }
+});
+
+// Toggle always-on-top for popout child windows
+ipcMain.handle('popout:set-always-on-top', (_event, { enabled, title }) => {
+  if (!title) return { success: false };
+  const allWindows = BrowserWindow.getAllWindows();
+  const childWindow = allWindows.find(w => !w.isDestroyed() && w !== mainWindow && w.getTitle() === title);
+  if (childWindow) {
+    childWindow.setAlwaysOnTop(Boolean(enabled), 'floating');
+    return { success: true, alwaysOnTop: Boolean(enabled) };
+  }
+  return { success: false };
 });
 
 ipcMain.handle('stripe:getPublishableKey', async () => {

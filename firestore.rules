@@ -92,6 +92,14 @@ service cloud.firestore {
       );
       allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerUid;
 
+      match /channels/{channelId}/messages/{messageId} {
+        allow read: if isSessionMember(sessionId);
+        allow create: if isSessionMember(sessionId) &&
+          request.resource.data.senderUid == request.auth.uid;
+        allow update, delete: if isSessionMember(sessionId) &&
+          resource.data.senderUid == request.auth.uid;
+      }
+
       match /voiceChannels/{channelId} {
         allow read: if isSessionMember(sessionId);
         allow create, update: if isSessionMember(sessionId);
