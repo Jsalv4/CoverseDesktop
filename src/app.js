@@ -199,6 +199,9 @@ let voiceSignalReconnectTimer = null;
 let voiceSignalManualClose = false;
 let voiceSignalingBackoffMs = 1200;
 let voiceSignalingRuntimeConfig = null;
+let voiceSignalsUnsubscribe = null;
+let voiceFirestoreSignaling = false;
+let masterOutputVolume = 1.0;
 let remoteAudioContext = null;
 let remoteAudioMonitorRaf = null;
 let remoteAudioPlaybackNoticeShown = false;
@@ -13024,6 +13027,114 @@ function getVoiceSignalingRoom(context) {
   return `${context.sessionId}::${context.channelId}`;
 }
 
+// ─── Firestore-based WebRTC signaling ───────────────────────────────────────
+// Falls back to (or replaces) the WebSocket signaling server so that calls
+// work without any separately-deployed backend.  Signal docs are written to
+// sessions/{id}/voiceChannels/{ch}/signals/{msgId} and deleted after receipt.
+
+function getVoiceSignalsRef(context) {
+  if (!context?.sessionId || !context?.channelId) return null;
+  if (!window.firebaseDb || !window.firebaseCollection) return null;
+  return window.firebaseCollection(
+    window.firebaseDb,
+    'sessions', context.sessionId,
+    'voiceChannels', context.channelId,
+    'signals'
+  );
+}
+
+async function sendFirestoreVoiceSignal(payload) {
+  if (!payload?.type || !payload?.targetUid) return;
+  const context = getActiveVoiceContext();
+  if (!context) return;
+  if (!window.firebaseDb || !window.firebaseAddDoc) return;
+  const sigRef = getVoiceSignalsRef(context);
+  if (!sigRef) return;
+  try {
+    await window.firebaseAddDoc(sigRef, {
+      from: payload.uid,
+      to: payload.targetUid,
+      type: payload.type,
+      name: payload.name || null,
+      sdp: payload.sdp || null,
+      candidate: payload.candidate || null,
+      ts: new Date()
+    });
+  } catch (err) {
+    console.warn('[Coverse] Firestore signal write failed:', err);
+  }
+}
+
+function subscribeToVoiceSignals(context) {
+  if (!context) return;
+  if (!window.firebaseDb || !window.firebaseOnSnapshot || !window.firebaseQuery || !window.firebaseWhere) return;
+
+  unsubscribeVoiceFirestoreSignals();
+
+  const sigRef = getVoiceSignalsRef(context);
+  if (!sigRef) return;
+
+  const localUid = getLocalVoiceIdentity().uid;
+  const processed = new Set();
+
+  const q = window.firebaseQuery(
+    sigRef,
+    window.firebaseWhere('to', '==', localUid)
+  );
+
+  let isInitialLoad = true;
+
+  voiceSignalsUnsubscribe = window.firebaseOnSnapshot(q, (snapshot) => {
+    const changes = snapshot.docChanges();
+
+    if (isInitialLoad) {
+      isInitialLoad = false;
+      // Purge any stale signals left from a previous session, don't process them
+      changes.forEach((change) => {
+        if (change.type === 'added') {
+          window.firebaseDeleteDoc?.(change.doc.ref).catch(() => {});
+        }
+      });
+      return;
+    }
+
+    changes.forEach((change) => {
+      if (change.type !== 'added') return;
+      const msgId = change.doc.id;
+      if (processed.has(msgId)) return;
+      processed.add(msgId);
+
+      const data = change.doc.data();
+      if (!data) return;
+
+      // Delete after processing so signals don't accumulate
+      window.firebaseDeleteDoc?.(change.doc.ref).catch(() => {});
+
+      handleVoiceSignalingMessage({
+        type: data.type,
+        uid: data.from,
+        name: data.name,
+        targetUid: data.to,
+        sdp: data.sdp,
+        candidate: data.candidate
+      });
+    });
+  }, (err) => {
+    console.warn('[Coverse] Voice signals subscription error:', err);
+  });
+
+  voiceFirestoreSignaling = true;
+}
+
+function unsubscribeVoiceFirestoreSignals() {
+  voiceFirestoreSignaling = false;
+  if (typeof voiceSignalsUnsubscribe === 'function') {
+    voiceSignalsUnsubscribe();
+    voiceSignalsUnsubscribe = null;
+  }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 function getLocalAudioTrack() {
   return localStream?.getAudioTracks?.()[0] || null;
 }
@@ -13218,9 +13329,11 @@ function ensureRemoteAudioElement(remoteUid, stream) {
   }
 
   audioEl.muted = Boolean(isDeafened);
-  // Apply saved volume
+  // Apply saved per-user volume scaled by master output volume
   if (participantVolumes.has(uid)) {
-    audioEl.volume = participantVolumes.get(uid);
+    audioEl.volume = Math.max(0, Math.min(1, participantVolumes.get(uid) * masterOutputVolume));
+  } else {
+    audioEl.volume = masterOutputVolume;
   }
   const playPromise = audioEl.play?.();
   if (playPromise && typeof playPromise.catch === 'function') {
@@ -13359,20 +13472,27 @@ async function syncPeerLocalTracks(entry) {
 }
 
 function sendVoiceSignal(payload) {
-  if (!voiceSignalSocket || voiceSignalSocket.readyState !== WebSocket.OPEN) return false;
-
-  try {
-    voiceSignalSocket.send(JSON.stringify(payload));
-    return true;
-  } catch (error) {
-    console.warn('[Coverse] Failed to send voice signal payload:', error);
-    return false;
+  if (voiceSignalSocket && voiceSignalSocket.readyState === WebSocket.OPEN) {
+    try {
+      voiceSignalSocket.send(JSON.stringify(payload));
+      return true;
+    } catch (error) {
+      console.warn('[Coverse] Failed to send voice signal via WebSocket:', error);
+    }
   }
+
+  // Firestore fallback for peer-directed signals (offer / answer / ice)
+  if (payload?.targetUid && voiceFirestoreSignaling) {
+    sendFirestoreVoiceSignal(payload).catch(() => {});
+    return true;
+  }
+
+  return false;
 }
 
 async function renegotiateVoicePeer(entry, reason = 'sync') {
   if (!entry?.pc || entry.isClosed) return;
-  if (!voiceSignalConnected) return;
+  if (!voiceSignalConnected && !voiceFirestoreSignaling) return;
 
   const pc = entry.pc;
   if (pc.signalingState === 'closed') return;
@@ -13781,6 +13901,8 @@ function disconnectVoiceSignaling(options = {}) {
   voiceSignalManualClose = true;
   voiceSignalConnected = false;
   voiceSignalRoom = '';
+
+  unsubscribeVoiceFirestoreSignals();
 
   if (voiceSignalReconnectTimer) {
     clearTimeout(voiceSignalReconnectTimer);
@@ -14785,6 +14907,7 @@ function initVoiceControls() {
   // Close menus on outside click
   document.addEventListener('click', () => {
     document.querySelectorAll('.device-menu').forEach(m => m.classList.remove('open'));
+    if (micLevelMeterRaf) { cancelAnimationFrame(micLevelMeterRaf); micLevelMeterRaf = null; }
   });
 
   updateRemoteControlButtonState();
@@ -14841,11 +14964,15 @@ async function joinVoice() {
     clearVoicePreviewRealtimeSubscription({ preserveContext: true });
     await ensureVoiceRealtimeSync();
     await publishLocalVoiceState();
+
+    // Subscribe to Firestore-based signaling so calls work without a WebSocket server
+    const activeCtx = getActiveVoiceContext();
+    if (activeCtx) subscribeToVoiceSignals(activeCtx);
+
     try {
       await connectVoiceSignaling();
     } catch (signalError) {
       console.warn('[Coverse] Voice signaling connection failed:', signalError);
-      showNotification('Joined voice, but media signaling is reconnecting.', { level: 'warning' });
     }
     
   } catch (err) {
@@ -14961,7 +15088,7 @@ async function toggleCamera() {
   
   if (isCameraOff) {
     try {
-      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const videoStream = await navigator.mediaDevices.getUserMedia({ video: { frameRate: { ideal: 30, max: 30 }, width: { ideal: 1280 }, height: { ideal: 720 } } });
       
       // Add video track to local stream
       if (localStream) {
@@ -15221,7 +15348,7 @@ async function toggleScreenShare() {
   if (!isScreenSharing) {
     try {
       screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: 'always' },
+        video: { cursor: 'always', frameRate: { ideal: 30, max: 30 } },
         audio: false
       });
       
@@ -15316,6 +15443,8 @@ function toggleDeviceMenu(menuId) {
   const wasOpen = menu?.classList.contains('open');
   
   document.querySelectorAll('.device-menu').forEach(m => m.classList.remove('open'));
+  // Stop level meter when any menu closes
+  if (micLevelMeterRaf) { cancelAnimationFrame(micLevelMeterRaf); micLevelMeterRaf = null; }
   
   if (menu && !wasOpen) {
     populateDeviceMenu(menuId);
@@ -15325,22 +15454,191 @@ function toggleDeviceMenu(menuId) {
 
 async function populateDeviceMenu(menuId) {
   try {
+    // Prompt for permission if needed so device labels show up
+    await navigator.mediaDevices.getUserMedia({ audio: menuId === 'micMenu', video: menuId === 'cameraMenu' }).then(s => s.getTracks().forEach(t => t.stop())).catch(() => {});
+
     const devices = await navigator.mediaDevices.enumerateDevices();
     const kind = menuId === 'micMenu' ? 'audioinput' : 'videoinput';
     const filtered = devices.filter(d => d.kind === kind);
-    
+
+    // Determine the currently active device ID
+    let activeDeviceId = null;
+    if (menuId === 'micMenu') {
+      activeDeviceId = localStream?.getAudioTracks()?.[0]?.getSettings?.()?.deviceId || null;
+    } else {
+      activeDeviceId = localStream?.getVideoTracks()?.[0]?.getSettings?.()?.deviceId || null;
+    }
+
     const list = document.getElementById(menuId === 'micMenu' ? 'micDeviceList' : 'cameraDeviceList');
     if (!list) return;
-    
-    list.innerHTML = filtered.map((d, i) => `
-      <div class="device-menu-item${i === 0 ? ' selected' : ''}" data-id="${d.deviceId}">
-        <svg viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"/></svg>
-        <span>${d.label || `Device ${i + 1}`}</span>
-      </div>
-    `).join('');
-    
+
+    list.innerHTML = filtered.map((d, i) => {
+      const isSelected = activeDeviceId ? d.deviceId === activeDeviceId : i === 0;
+      return `
+        <div class="device-menu-item${isSelected ? ' selected' : ''}" data-device-id="${d.deviceId}" data-menu="${menuId}">
+          <svg viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+          <span>${d.label || `${kind === 'audioinput' ? 'Microphone' : 'Camera'} ${i + 1}`}</span>
+        </div>
+      `;
+    }).join('');
+
+    // Wire up device selection
+    list.querySelectorAll('.device-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        const deviceId = item.dataset.deviceId;
+        if (menuId === 'micMenu') {
+          switchMicDevice(deviceId).catch(() => {});
+        } else {
+          switchCameraDevice(deviceId).catch(() => {});
+        }
+        list.querySelectorAll('.device-menu-item').forEach(el => el.classList.remove('selected'));
+        item.classList.add('selected');
+      });
+    });
+
+    // For mic menu: add live level meter + output volume control
+    if (menuId === 'micMenu') {
+      const menu = document.getElementById('micMenu');
+      if (menu && !menu.querySelector('.mic-level-section')) {
+        const levelSection = document.createElement('div');
+        levelSection.className = 'mic-level-section';
+        levelSection.innerHTML = `
+          <div class="mic-level-label">Input Level</div>
+          <div class="mic-level-bar-track"><div class="mic-level-bar-fill" id="micLevelBarFill"></div></div>
+        `;
+        const title = menu.querySelector('.device-menu-title');
+        if (title) {
+          title.insertAdjacentElement('afterend', levelSection);
+        }
+
+        const divider = document.createElement('div');
+        divider.className = 'device-menu-divider';
+        menu.appendChild(divider);
+
+        const outputSection = document.createElement('div');
+        outputSection.className = 'output-volume-section';
+        outputSection.innerHTML = `
+          <div class="output-volume-label">Output Volume</div>
+          <div class="output-volume-row">
+            <svg viewBox="0 0 256 256"><path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81Z"/></svg>
+            <input type="range" class="output-volume-slider" id="outputVolumeSlider" min="0" max="100" value="${Math.round(masterOutputVolume * 100)}" title="Output volume">
+          </div>
+        `;
+        outputSection.addEventListener('click', (e) => e.stopPropagation());
+        outputSection.querySelector('#outputVolumeSlider')?.addEventListener('input', (e) => {
+          setMasterOutputVolume(parseFloat(e.target.value) / 100);
+        });
+        menu.appendChild(outputSection);
+      }
+
+      // Always (re)start the level meter when the mic menu opens
+      startMicLevelMeter();
+    }
+
   } catch (err) {
     console.error('[Coverse] Device enumeration error:', err);
+  }
+}
+
+let micLevelMeterRaf = null;
+
+function setMasterOutputVolume(vol) {
+  masterOutputVolume = Math.max(0, Math.min(1, vol));
+  remoteAudioElements.forEach((el) => {
+    const uid = el.dataset.remoteUid;
+    // Respect per-participant overrides; master scales on top
+    const perUser = participantVolumes.has(uid) ? participantVolumes.get(uid) : 1.0;
+    el.volume = Math.max(0, Math.min(1, perUser * masterOutputVolume));
+  });
+}
+
+function startMicLevelMeter() {
+  if (micLevelMeterRaf) cancelAnimationFrame(micLevelMeterRaf);
+
+  const tick = () => {
+    const fill = document.getElementById('micLevelBarFill');
+    if (!fill) { micLevelMeterRaf = null; return; }
+
+    let level = 0;
+    if (micMonitorAnalyser && micMonitorData) {
+      micMonitorAnalyser.getByteTimeDomainData(micMonitorData);
+      let sum = 0;
+      for (let i = 0; i < micMonitorData.length; i++) {
+        const c = (micMonitorData[i] - 128) / 128;
+        sum += c * c;
+      }
+      level = Math.sqrt(sum / micMonitorData.length);
+    }
+
+    const pct = Math.min(100, Math.round(level * 400));
+    fill.style.width = pct + '%';
+    fill.classList.toggle('high', pct > 80);
+
+    micLevelMeterRaf = requestAnimationFrame(tick);
+  };
+
+  micLevelMeterRaf = requestAnimationFrame(tick);
+}
+
+async function switchMicDevice(deviceId) {
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId: { exact: deviceId },
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+
+    const newTrack = newStream.getAudioTracks()[0];
+    if (!newTrack) return;
+
+    if (localStream) {
+      // Replace old audio track(s) in localStream
+      localStream.getAudioTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
+      localStream.addTrack(newTrack);
+    } else {
+      localStream = newStream;
+    }
+
+    if (inVoiceCall) {
+      stopMicActivityMonitor();
+      startMicActivityMonitor();
+      await syncLocalMediaToVoicePeers({ renegotiate: false });
+    }
+  } catch (err) {
+    console.warn('[Coverse] Mic switch failed:', err);
+    showNotification('Could not switch microphone.', { level: 'warning' });
+  }
+}
+
+async function switchCameraDevice(deviceId) {
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: deviceId }, frameRate: { ideal: 30, max: 30 }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+
+    const newTrack = newStream.getVideoTracks()[0];
+    if (!newTrack) return;
+
+    if (localStream) {
+      localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
+      localStream.addTrack(newTrack);
+    } else {
+      localStream = newStream;
+    }
+
+    isCameraOff = false;
+    document.getElementById('btnCamera')?.classList.remove('muted');
+    startCameraPreviewCapture();
+
+    if (inVoiceCall) {
+      await syncLocalMediaToVoicePeers({ renegotiate: true });
+    }
+  } catch (err) {
+    console.warn('[Coverse] Camera switch failed:', err);
+    showNotification('Could not switch camera.', { level: 'warning' });
   }
 }
 

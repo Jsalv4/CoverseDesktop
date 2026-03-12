@@ -2311,7 +2311,87 @@ html, body {
   fill: var(--brand-500);
 }
 
-/* Notification box */
+/* Mic settings level meter */
+.mic-level-section {
+  padding: 8px 12px 4px;
+}
+
+.mic-level-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.mic-level-bar-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-modifier-accent, rgba(255,255,255,0.08));
+  overflow: hidden;
+}
+
+.mic-level-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #43b581;
+  width: 0%;
+  transition: width 0.05s linear;
+}
+
+.mic-level-bar-fill.high {
+  background: #f04747;
+}
+
+.device-menu-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 6px 0;
+}
+
+.output-volume-section {
+  padding: 8px 12px;
+}
+
+.output-volume-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.output-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.output-volume-row svg {
+  width: 14px;
+  height: 14px;
+  fill: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.output-volume-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-modifier-accent, rgba(255,255,255,0.12));
+  outline: none;
+  cursor: pointer;
+}
+
+.output-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-normal);
+  cursor: pointer;
+}
 .notification-box {
   position: fixed;
   top: 16px;
